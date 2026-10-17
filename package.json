@@ -1,0 +1,36 @@
+{
+  "name": "@plumb-cli/plumb",
+  "version": "0.0.0",
+  "description": "Maps your codebase, runs your app to prove changes work, and gates commits and pull requests.",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "plumb": "dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "schemas"
+  ],
+  "engines": {
+    "node": ">=22.20.0"
+  },
+  "packageManager": "pnpm@11.20.0",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "prepack": "pnpm build",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "ajv": "^8.20.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^22.20.5",
+    "eslint": "^10.13.0",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.71.2",
+    "vitest": "^5.0.5"
+  }
+}
