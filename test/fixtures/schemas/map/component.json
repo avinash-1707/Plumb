@@ -1,0 +1,42 @@
+{
+  "id": "component:api",
+  "kind": "service",
+  "root": "apps/api",
+  "include": ["apps/api/**"],
+  "language": ["typescript"],
+  "framework": ["express"],
+  "files": { "apps/api/src/orders.ts": "9f2c1e0a7b3d4c5e6f708192a3b4c5d6e7f80912" },
+  "entryPoints": [
+    {
+      "id": "entry:http:POST /api/orders",
+      "kind": "http",
+      "location": { "file": "apps/api/src/orders.ts", "line": 12 },
+      "provenance": { "source": "extracted", "extractor": "express-routes" }
+    }
+  ],
+  "exports": ["createApp"],
+  "edges": [
+    {
+      "kind": "writes",
+      "to": "resource:db.orders",
+      "evidence": [{ "file": "apps/api/src/orders.ts", "line": 20 }],
+      "provenance": { "source": "extracted", "extractor": "db-access" }
+    },
+    {
+      "kind": "calls-http",
+      "to": "entry:http:POST /payments",
+      "evidence": [{ "file": "apps/api/src/orders.ts", "line": 31 }],
+      "provenance": { "source": "inferred", "confidence": "low" }
+    }
+  ],
+  "state": [
+    {
+      "id": "file:apps/api/src/cache.ts#orderCache",
+      "kind": "cache",
+      "location": { "file": "apps/api/src/cache.ts", "line": 3 },
+      "mutatedFrom": [{ "file": "apps/api/src/orders.ts", "line": 22 }],
+      "provenance": { "source": "extracted", "extractor": "shared-state" }
+    }
+  ],
+  "summaryStatus": "missing"
+}

@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "strategy": "web-app",
+  "components": [{ "id": "component:server", "include": ["src/server/**"] }],
+  "ignore": ["**/generated/**"],
+  "gate": { "smoke": false, "budgetSec": 30 },
+  "review": { "concerns": ["architecture", "resilience"], "blockAt": "high", "maxAgents": 4 }
+}

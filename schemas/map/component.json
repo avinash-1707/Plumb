@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "plumb:/schemas/map/component.json",
+  "title": "Plumb map component (.plumb/map/components/<id>.json)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "kind", "root", "include", "language", "framework", "files", "entryPoints", "exports", "edges", "state", "summaryStatus"],
+  "properties": {
+    "id": { "type": "string", "pattern": "^component:.+$" },
+    "kind": { "enum": ["app", "service", "package", "library", "worker"] },
+    "root": { "type": "string" },
+    "include": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+    "language": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+    "framework": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+    "files": {
+      "description": "Repo-relative path to git blob SHA.",
+      "type": "object",
+      "additionalProperties": { "type": "string", "pattern": "^[0-9a-f]{40}([0-9a-f]{24})?$" }
+    },
+    "entryPoints": { "type": "array", "items": { "$ref": "#/$defs/entryPoint" } },
+    "exports": { "description": "Public surface only.", "type": "array", "items": { "type": "string", "minLength": 1 } },
+    "edges": { "description": "Outgoing only.", "type": "array", "items": { "$ref": "#/$defs/edge" } },
+    "state": { "type": "array", "items": { "$ref": "#/$defs/sharedState" } },
+    "summaryStatus": { "enum": ["fresh", "stale", "missing"] }
+  },
+  "$defs": {
+    "entryPoint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "location", "provenance"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^entry:.+$" },
+        "kind": { "enum": ["http", "cli", "job", "event", "ui-route", "main"] },
+        "location": { "$ref": "../common.json#/$defs/loc" },
+        "provenance": { "$ref": "../common.json#/$defs/provenance" }
+      }
+    },
+    "edge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "to", "evidence", "provenance"],
+      "properties": {
+        "kind": {
+          "enum": ["imports", "calls-http", "publishes", "consumes", "reads", "writes", "uses-env", "calls-external", "spawns"]
+        },
+        "to": { "$ref": "../common.json#/$defs/nodeId" },
+        "evidence": {
+          "description": "Required: an edge with no evidence is not written.",
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "../common.json#/$defs/loc" }
+        },
+        "provenance": { "$ref": "../common.json#/$defs/provenance" }
+      }
+    },
+    "sharedState": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "location", "mutatedFrom", "provenance"],
+      "properties": {
+        "id": { "$ref": "../common.json#/$defs/nodeId" },
+        "kind": { "enum": ["module-singleton", "global-mutable", "cache", "connection-pool", "timer", "listener"] },
+        "location": { "$ref": "../common.json#/$defs/loc" },
+        "mutatedFrom": { "type": "array", "items": { "$ref": "../common.json#/$defs/loc" } },
+        "provenance": { "$ref": "../common.json#/$defs/provenance" }
+      }
+    }
+  }
+}

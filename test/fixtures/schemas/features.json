@@ -1,0 +1,12 @@
+{
+  "features": [
+    {
+      "id": "create-order",
+      "file": "features/create-order.md",
+      "paths": ["apps/api/src/orders.ts", "apps/web/app/checkout/**"],
+      "components": ["component:api", "component:web"],
+      "entryPoints": ["entry:http:POST /api/orders", "entry:ui:/checkout"],
+      "tier": "deep"
+    }
+  ]
+}

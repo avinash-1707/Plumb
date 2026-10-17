@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "plumb:/schemas/common.json",
+  "title": "Plumb shared definitions",
+  "$defs": {
+    "nodeId": {
+      "description": "Stable, path-derived id such as component:api, file:apps/api/src/orders.ts, resource:db.orders, entry:http:POST /api/orders.",
+      "type": "string",
+      "pattern": "^[a-z]+:.+$"
+    },
+    "loc": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["file", "line"],
+      "properties": {
+        "file": { "type": "string", "minLength": 1 },
+        "line": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "provenance": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["source", "extractor"],
+          "properties": {
+            "source": { "const": "extracted" },
+            "extractor": { "type": "string", "minLength": 1 }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["source", "confidence"],
+          "properties": {
+            "source": { "const": "inferred" },
+            "confidence": { "enum": ["high", "low"] }
+          }
+        }
+      ]
+    },
+    "strategy": { "enum": ["library-cli", "api-backend", "web-app", "monorepo"] },
+    "kebabId": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" }
+  }
+}

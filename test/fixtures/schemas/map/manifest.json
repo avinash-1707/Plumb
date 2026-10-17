@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "builtAtCommit": "21ee1db0c3a4f5e6d7c8b9a0e1f2d3c4b5a69788",
+  "extractors": { "depcruise-imports": "1", "express-routes": "1", "prisma-schema": "1" },
+  "components": ["component:api", "component:db", "component:web"],
+  "unassignedFiles": ["scripts/seed.ts"],
+  "extractorFailures": [
+    { "extractor": "depcruise-imports", "component": "component:web", "reason": "dependencies not installed", "fallback": "none" }
+  ]
+}

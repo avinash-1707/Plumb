@@ -1,0 +1,16 @@
+{
+  "resources": [
+    {
+      "id": "resource:db.orders",
+      "kind": "db-table",
+      "definedAt": { "file": "packages/db/prisma/schema.prisma", "line": 14 },
+      "provenance": { "source": "extracted", "extractor": "prisma-schema" }
+    },
+    {
+      "id": "resource:env.STRIPE_KEY",
+      "kind": "env-var",
+      "definedAt": null,
+      "provenance": { "source": "extracted", "extractor": "env" }
+    }
+  ]
+}

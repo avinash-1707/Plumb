@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "plumb:/schemas/features.json",
+  "title": "Plumb feature index (.plumb/features.json)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["features"],
+  "properties": {
+    "features": { "type": "array", "items": { "$ref": "#/$defs/feature" } }
+  },
+  "$defs": {
+    "feature": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "file", "paths", "components", "entryPoints", "tier"],
+      "properties": {
+        "id": { "$ref": "common.json#/$defs/kebabId" },
+        "file": { "description": "Relative to the verify skill directory.", "type": "string", "pattern": "^features/.+\\.md$" },
+        "paths": { "description": "Globs of code that implements the feature.", "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+        "components": { "type": "array", "items": { "type": "string", "pattern": "^component:.+$" } },
+        "entryPoints": { "type": "array", "items": { "type": "string", "pattern": "^entry:.+$" } },
+        "tier": { "description": "deep requires a live drive when touched.", "enum": ["fast-only", "deep"] }
+      }
+    }
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "plumb:/schemas/map/resources.json",
+  "title": "Plumb shared resources (.plumb/map/resources.json)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["resources"],
+  "properties": {
+    "resources": { "type": "array", "items": { "$ref": "#/$defs/resource" } }
+  },
+  "$defs": {
+    "resource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "definedAt", "provenance"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^resource:.+$" },
+        "kind": { "enum": ["db-table", "queue", "cache", "file-store", "external-api", "env-var", "service"] },
+        "definedAt": {
+          "description": "Schema file, compose file, or .env.example; null if only seen in code.",
+          "oneOf": [{ "$ref": "../common.json#/$defs/loc" }, { "type": "null" }]
+        },
+        "provenance": { "$ref": "../common.json#/$defs/provenance" }
+      }
+    }
+  }
+}

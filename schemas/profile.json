@@ -1,0 +1,185 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "plumb:/schemas/profile.json",
+  "title": "Plumb profile (.plumb/profile.json)",
+  "description": "How the project installs, builds, runs, and tests. Synthesized by the host agent, validated by the CLI.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "app", "strategy", "packageManager", "install", "build", "checks", "run", "services", "env", "ui", "unknowns", "evidence"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "app": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "slug"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "slug": { "description": "Names the verify skill: verify-<slug>.", "$ref": "common.json#/$defs/kebabId" }
+      }
+    },
+    "strategy": { "$ref": "common.json#/$defs/strategy" },
+    "packageManager": {
+      "oneOf": [
+        { "enum": ["pnpm", "npm", "yarn", "bun", "pip", "poetry", "uv", "go", "cargo"] },
+        { "type": "null" }
+      ]
+    },
+    "install": { "$ref": "#/$defs/nullableCommand" },
+    "build": { "$ref": "#/$defs/nullableCommand" },
+    "checks": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["lint", "typecheck", "unit", "integration", "e2e"],
+      "properties": {
+        "lint": { "$ref": "#/$defs/nullableCommand" },
+        "typecheck": { "$ref": "#/$defs/nullableCommand" },
+        "unit": { "$ref": "#/$defs/nullableScopedCommand" },
+        "integration": { "$ref": "#/$defs/nullableScopedCommand" },
+        "e2e": { "$ref": "#/$defs/nullableCommand" }
+      }
+    },
+    "run": { "type": "array", "items": { "$ref": "#/$defs/runTarget" } },
+    "services": { "type": "array", "items": { "$ref": "#/$defs/service" } },
+    "env": { "type": "array", "items": { "$ref": "#/$defs/envRequirement" } },
+    "ui": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["present", "framework", "baseUrl", "harness", "authRequired"],
+      "properties": {
+        "present": { "type": "boolean" },
+        "framework": { "type": ["string", "null"] },
+        "baseUrl": { "type": ["string", "null"] },
+        "harness": {
+          "oneOf": [
+            { "enum": ["existing-playwright", "existing-cypress", "playwright-mcp"] },
+            { "type": "null" }
+          ]
+        },
+        "authRequired": { "type": "boolean" }
+      }
+    },
+    "unknowns": { "type": "array", "items": { "$ref": "#/$defs/unknown" } },
+    "evidence": {
+      "description": "Field path to where it was learned.",
+      "type": "object",
+      "additionalProperties": { "type": "array", "items": { "$ref": "common.json#/$defs/loc" } }
+    }
+  },
+  "$defs": {
+    "command": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["cmd", "cwd", "timeoutSec"],
+      "properties": {
+        "cmd": { "description": "Exact shell command.", "type": "string", "minLength": 1 },
+        "cwd": { "$ref": "#/$defs/repoRelativePath" },
+        "timeoutSec": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "scopedCommand": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["cmd", "cwd", "timeoutSec", "scoped"],
+      "properties": {
+        "cmd": { "type": "string", "minLength": 1 },
+        "cwd": { "$ref": "#/$defs/repoRelativePath" },
+        "timeoutSec": { "type": "integer", "minimum": 1 },
+        "scoped": {
+          "description": "Command for only the tests relevant to some files, with a {files} placeholder; null if the suite cannot be scoped.",
+          "oneOf": [{ "type": "string", "pattern": "\\{files\\}" }, { "type": "null" }]
+        }
+      }
+    },
+    "repoRelativePath": {
+      "description": "Repo-relative directory: no leading slash and no \"..\" segments.",
+      "type": "string",
+      "pattern": "^(?!/)(?!.*(^|/)\\.\\.(/|$)).*$"
+    },
+    "nullableCommand": { "oneOf": [{ "$ref": "#/$defs/command" }, { "type": "null" }] },
+    "nullableScopedCommand": { "oneOf": [{ "$ref": "#/$defs/scopedCommand" }, { "type": "null" }] },
+    "readinessProbe": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "url", "expectStatus"],
+          "properties": {
+            "kind": { "const": "http" },
+            "url": { "type": "string", "minLength": 1 },
+            "expectStatus": { "type": "integer", "minimum": 100, "maximum": 599 }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "port"],
+          "properties": {
+            "kind": { "const": "port" },
+            "port": { "$ref": "#/$defs/port" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "pattern"],
+          "properties": {
+            "kind": { "const": "log" },
+            "pattern": { "type": "string", "minLength": 1 }
+          }
+        }
+      ]
+    },
+    "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
+    "runTarget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "start", "ready", "stop", "port", "portEnv"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "start": { "$ref": "#/$defs/command" },
+        "ready": { "$ref": "#/$defs/readinessProbe" },
+        "stop": {
+          "description": "\"signal\" kills the process group Plumb started.",
+          "oneOf": [{ "const": "signal" }, { "$ref": "#/$defs/command" }]
+        },
+        "port": { "oneOf": [{ "$ref": "#/$defs/port" }, { "type": "null" }] },
+        "portEnv": { "type": ["string", "null"] }
+      }
+    },
+    "service": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "source", "start", "stop", "ready"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "source": { "enum": ["docker-compose", "local", "external"] },
+        "start": { "$ref": "#/$defs/nullableCommand" },
+        "stop": { "$ref": "#/$defs/nullableCommand" },
+        "ready": { "oneOf": [{ "$ref": "#/$defs/readinessProbe" }, { "type": "null" }] }
+      }
+    },
+    "envRequirement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "required", "secret", "defaultForVerification", "source"],
+      "properties": {
+        "name": { "type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$" },
+        "required": { "type": "boolean" },
+        "secret": { "type": "boolean" },
+        "defaultForVerification": { "type": ["string", "null"] },
+        "source": { "enum": ["env-example", "code", "compose"] }
+      }
+    },
+    "unknown": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "question", "why", "storesIn"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "question": { "description": "Asked to the user verbatim.", "type": "string", "minLength": 1 },
+        "why": { "description": "What breaks without it.", "type": "string", "minLength": 1 },
+        "storesIn": { "const": "local.json" }
+      }
+    }
+  }
+}

@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "app": { "name": "Node Web", "slug": "node-web" },
+  "strategy": "web-app",
+  "packageManager": "pnpm",
+  "install": { "cmd": "pnpm install --frozen-lockfile", "cwd": ".", "timeoutSec": 300 },
+  "build": null,
+  "checks": {
+    "lint": { "cmd": "pnpm lint", "cwd": ".", "timeoutSec": 120 },
+    "typecheck": { "cmd": "pnpm typecheck", "cwd": ".", "timeoutSec": 120 },
+    "unit": { "cmd": "pnpm vitest run", "cwd": ".", "timeoutSec": 300, "scoped": "pnpm vitest related {files} --run" },
+    "integration": null,
+    "e2e": { "cmd": "pnpm playwright test", "cwd": "apps/web", "timeoutSec": 600 }
+  },
+  "run": [
+    {
+      "name": "api",
+      "start": { "cmd": "pnpm dev", "cwd": "apps/api", "timeoutSec": 60 },
+      "ready": { "kind": "http", "url": "http://localhost:4000/health", "expectStatus": 200 },
+      "stop": "signal",
+      "port": 4000,
+      "portEnv": "PORT"
+    },
+    {
+      "name": "web",
+      "start": { "cmd": "pnpm dev", "cwd": "apps/web", "timeoutSec": 90 },
+      "ready": { "kind": "log", "pattern": "Ready in" },
+      "stop": "signal",
+      "port": null,
+      "portEnv": null
+    }
+  ],
+  "services": [
+    {
+      "name": "postgres",
+      "source": "docker-compose",
+      "start": { "cmd": "docker compose up -d postgres", "cwd": ".", "timeoutSec": 120 },
+      "stop": { "cmd": "docker compose stop postgres", "cwd": ".", "timeoutSec": 60 },
+      "ready": { "kind": "port", "port": 5432 }
+    }
+  ],
+  "env": [
+    { "name": "DATABASE_URL", "required": true, "secret": false, "defaultForVerification": "postgres://localhost:5432/dev", "source": "env-example" },
+    { "name": "STRIPE_KEY", "required": true, "secret": true, "defaultForVerification": null, "source": "code" }
+  ],
+  "ui": { "present": true, "framework": "next", "baseUrl": "http://localhost:3000", "harness": "existing-playwright", "authRequired": true },
+  "unknowns": [
+    { "id": "stripe-key", "question": "Which Stripe test-mode key should verification use?", "why": "Checkout cannot be driven without it.", "storesIn": "local.json" }
+  ],
+  "evidence": { "checks.unit": [{ "file": "package.json", "line": 9 }] }
+}
