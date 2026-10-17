@@ -1,0 +1,17 @@
+{
+  "name": "node-web",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.20.0"
+  },
+  "packageManager": "pnpm@11.20.0",
+  "scripts": {
+    "db:setup": "docker compose up -d --wait postgres && pnpm --filter @node-web/db db:deploy && pnpm --filter @node-web/db db:seed",
+    "dev": "pnpm --parallel --filter @node-web/api --filter @node-web/web dev",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "e2e": "pnpm --filter @node-web/web e2e",
+    "teardown": "docker compose down -v"
+  }
+}
