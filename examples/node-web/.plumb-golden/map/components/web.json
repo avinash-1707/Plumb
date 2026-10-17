@@ -1,0 +1,322 @@
+{
+  "edges": [
+    {
+      "evidence": [
+        {
+          "file": "apps/web/components/sign-out-button.tsx",
+          "line": 10
+        }
+      ],
+      "kind": "calls-http",
+      "provenance": {
+        "extractor": "fetch-calls",
+        "source": "extracted"
+      },
+      "to": "entry:http:DELETE /api/sessions"
+    },
+    {
+      "evidence": [
+        {
+          "file": "apps/web/app/orders/[id]/page.tsx",
+          "line": 15
+        }
+      ],
+      "kind": "calls-http",
+      "provenance": {
+        "confidence": "high",
+        "source": "inferred"
+      },
+      "to": "entry:http:GET /api/orders/:id"
+    },
+    {
+      "evidence": [
+        {
+          "file": "apps/web/components/product-search.tsx",
+          "line": 25
+        }
+      ],
+      "kind": "calls-http",
+      "provenance": {
+        "confidence": "high",
+        "source": "inferred"
+      },
+      "to": "entry:http:GET /api/products"
+    },
+    {
+      "evidence": [
+        {
+          "file": "apps/web/components/product-search.tsx",
+          "line": 45
+        }
+      ],
+      "kind": "calls-http",
+      "provenance": {
+        "extractor": "fetch-calls",
+        "source": "extracted"
+      },
+      "to": "entry:http:POST /api/orders"
+    },
+    {
+      "evidence": [
+        {
+          "file": "apps/web/components/new-product-form.tsx",
+          "line": 24
+        }
+      ],
+      "kind": "calls-http",
+      "provenance": {
+        "extractor": "fetch-calls",
+        "source": "extracted"
+      },
+      "to": "entry:http:POST /api/products"
+    },
+    {
+      "evidence": [
+        {
+          "file": "apps/web/components/sign-in-form.tsx",
+          "line": 17
+        }
+      ],
+      "kind": "calls-http",
+      "provenance": {
+        "extractor": "fetch-calls",
+        "source": "extracted"
+      },
+      "to": "entry:http:POST /api/sessions"
+    },
+    {
+      "evidence": [
+        {
+          "file": "apps/web/app/orders/[id]/actions.ts",
+          "line": 4
+        },
+        {
+          "file": "apps/web/lib/session.ts",
+          "line": 3
+        }
+      ],
+      "kind": "imports",
+      "provenance": {
+        "extractor": "depcruise-imports",
+        "source": "extracted"
+      },
+      "to": "component:db"
+    },
+    {
+      "evidence": [
+        {
+          "file": "apps/web/app/orders/[id]/actions.ts",
+          "line": 23
+        }
+      ],
+      "kind": "reads",
+      "provenance": {
+        "extractor": "db-access",
+        "source": "extracted"
+      },
+      "to": "resource:db.Order"
+    },
+    {
+      "evidence": [
+        {
+          "file": "apps/web/lib/session.ts",
+          "line": 16
+        }
+      ],
+      "kind": "reads",
+      "provenance": {
+        "extractor": "db-access",
+        "source": "extracted"
+      },
+      "to": "resource:db.Session"
+    },
+    {
+      "evidence": [
+        {
+          "file": "apps/web/playwright.config.ts",
+          "line": 4
+        }
+      ],
+      "kind": "uses-env",
+      "provenance": {
+        "extractor": "env",
+        "source": "extracted"
+      },
+      "to": "resource:env.API_PORT"
+    },
+    {
+      "evidence": [
+        {
+          "file": "apps/web/lib/api.ts",
+          "line": 5
+        },
+        {
+          "file": "apps/web/next.config.ts",
+          "line": 8
+        }
+      ],
+      "kind": "uses-env",
+      "provenance": {
+        "extractor": "env",
+        "source": "extracted"
+      },
+      "to": "resource:env.API_URL"
+    },
+    {
+      "evidence": [
+        {
+          "file": "apps/web/playwright.config.ts",
+          "line": 10
+        },
+        {
+          "file": "apps/web/playwright.config.ts",
+          "line": 21
+        },
+        {
+          "file": "apps/web/playwright.config.ts",
+          "line": 27
+        }
+      ],
+      "kind": "uses-env",
+      "provenance": {
+        "extractor": "env",
+        "source": "extracted"
+      },
+      "to": "resource:env.CI"
+    },
+    {
+      "evidence": [
+        {
+          "file": "apps/web/playwright.config.ts",
+          "line": 3
+        }
+      ],
+      "kind": "uses-env",
+      "provenance": {
+        "extractor": "env",
+        "source": "extracted"
+      },
+      "to": "resource:env.PORT"
+    },
+    {
+      "evidence": [
+        {
+          "file": "apps/web/app/orders/[id]/actions.ts",
+          "line": 36
+        }
+      ],
+      "kind": "writes",
+      "provenance": {
+        "extractor": "db-access",
+        "source": "extracted"
+      },
+      "to": "resource:db.Order"
+    },
+    {
+      "evidence": [
+        {
+          "file": "apps/web/app/orders/[id]/actions.ts",
+          "line": 30
+        }
+      ],
+      "kind": "writes",
+      "provenance": {
+        "extractor": "db-access",
+        "source": "extracted"
+      },
+      "to": "resource:db.Product"
+    }
+  ],
+  "entryPoints": [
+    {
+      "id": "entry:ui:/",
+      "kind": "ui-route",
+      "location": {
+        "file": "apps/web/app/page.tsx",
+        "line": 1
+      },
+      "provenance": {
+        "extractor": "next-routes",
+        "source": "extracted"
+      }
+    },
+    {
+      "id": "entry:ui:/orders/[id]",
+      "kind": "ui-route",
+      "location": {
+        "file": "apps/web/app/orders/[id]/page.tsx",
+        "line": 1
+      },
+      "provenance": {
+        "extractor": "next-routes",
+        "source": "extracted"
+      }
+    },
+    {
+      "id": "entry:ui:/products/new",
+      "kind": "ui-route",
+      "location": {
+        "file": "apps/web/app/products/new/page.tsx",
+        "line": 1
+      },
+      "provenance": {
+        "extractor": "next-routes",
+        "source": "extracted"
+      }
+    },
+    {
+      "id": "entry:ui:/sign-in",
+      "kind": "ui-route",
+      "location": {
+        "file": "apps/web/app/sign-in/page.tsx",
+        "line": 1
+      },
+      "provenance": {
+        "extractor": "next-routes",
+        "source": "extracted"
+      }
+    }
+  ],
+  "exports": [],
+  "files": {
+    "apps/web/app/globals.css": "105e9df3c3a8774dd859773db9393ccecfff663e",
+    "apps/web/app/layout.tsx": "0bf0e59044d710fc9944643dfe16e1bafa28277c",
+    "apps/web/app/orders/[id]/actions.ts": "2cf621d767369133e977a6face15799487db0988",
+    "apps/web/app/orders/[id]/page.tsx": "5ad380ab9e131c9be44927ca8db07cc297c7d270",
+    "apps/web/app/page.tsx": "f27a9ba4d3bfbd64011e8bddb858af109a475275",
+    "apps/web/app/products/new/page.tsx": "cf498d07a190c2f55336852dfd13b461fb88ee93",
+    "apps/web/app/sign-in/page.tsx": "44787bb94d92973a9f4e95da70a9f4b2d082c289",
+    "apps/web/components/new-product-form.tsx": "605279b2918dde80411106cd34115c89512190be",
+    "apps/web/components/order-again-button.tsx": "6d09c645088cb61b69b8907c1286f2bf744cb219",
+    "apps/web/components/product-search.tsx": "ab536a01aa664c033e74022e120888eef9aec626",
+    "apps/web/components/sign-in-form.tsx": "366c9daae414ffdaa5fc7b91044007123a652da4",
+    "apps/web/components/sign-out-button.tsx": "5cade7065cfe6722ccbdf1e51c6e603ca0ce8dc6",
+    "apps/web/e2e/search.spec.ts": "0c9d7c4a586a8bb2917d82d0cac1c2606ef2470e",
+    "apps/web/lib/api.ts": "788649d7a331aa23d588abefe5a1e5ef7e9c6fdd",
+    "apps/web/lib/format.test.ts": "83aa918b3a574210afc06055c5b5db6633410b9b",
+    "apps/web/lib/format.ts": "c176a82dd3e5b46f7303d8f6fe00cd1d60027560",
+    "apps/web/lib/http.ts": "35601dad0b3a05e7d791b25f6292f92a5beae9fd",
+    "apps/web/lib/session.ts": "f5e7361959970a9d1d6da8f41dd1804424c1fa9a",
+    "apps/web/next.config.ts": "5e2f219579f3fca81eec28e8d6b7cf984e12d901",
+    "apps/web/package.json": "e4aaab2802004562acf6890a2e2872ffda56113d",
+    "apps/web/playwright.config.ts": "92d0ce440bcb4568034a7e28618d62350c5d4135",
+    "apps/web/tsconfig.json": "b8db5d4efe07513272d44f1d0f8ccf828f205e5b",
+    "apps/web/vitest.config.ts": "382e8d62522c453304ce366cf930f7787c725226"
+  },
+  "framework": [
+    "next",
+    "react"
+  ],
+  "id": "component:web",
+  "include": [
+    "apps/web/**"
+  ],
+  "kind": "app",
+  "language": [
+    "css",
+    "typescript"
+  ],
+  "root": "apps/web",
+  "state": [],
+  "summaryStatus": "missing"
+}

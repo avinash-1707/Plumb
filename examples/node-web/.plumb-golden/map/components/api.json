@@ -1,0 +1,365 @@
+{
+  "edges": [
+    {
+      "evidence": [
+        {
+          "file": "apps/api/src/auth.ts",
+          "line": 3
+        },
+        {
+          "file": "apps/api/src/routes/orders.ts",
+          "line": 2
+        },
+        {
+          "file": "apps/api/src/routes/products.ts",
+          "line": 2
+        },
+        {
+          "file": "apps/api/src/routes/sessions.ts",
+          "line": 2
+        },
+        {
+          "file": "apps/api/src/server.ts",
+          "line": 1
+        }
+      ],
+      "kind": "imports",
+      "provenance": {
+        "extractor": "depcruise-imports",
+        "source": "extracted"
+      },
+      "to": "component:db"
+    },
+    {
+      "evidence": [
+        {
+          "file": "apps/api/src/routes/orders.ts",
+          "line": 63
+        }
+      ],
+      "kind": "reads",
+      "provenance": {
+        "extractor": "db-access",
+        "source": "extracted"
+      },
+      "to": "resource:db.Order"
+    },
+    {
+      "evidence": [
+        {
+          "file": "apps/api/src/routes/orders.ts",
+          "line": 31
+        },
+        {
+          "file": "apps/api/src/routes/products.ts",
+          "line": 17
+        },
+        {
+          "file": "apps/api/src/routes/products.ts",
+          "line": 25
+        }
+      ],
+      "kind": "reads",
+      "provenance": {
+        "extractor": "db-access",
+        "source": "extracted"
+      },
+      "to": "resource:db.Product"
+    },
+    {
+      "evidence": [
+        {
+          "file": "apps/api/src/auth.ts",
+          "line": 42
+        }
+      ],
+      "kind": "reads",
+      "provenance": {
+        "extractor": "db-access",
+        "source": "extracted"
+      },
+      "to": "resource:db.Session"
+    },
+    {
+      "evidence": [
+        {
+          "file": "apps/api/src/routes/sessions.ts",
+          "line": 14
+        }
+      ],
+      "kind": "reads",
+      "provenance": {
+        "extractor": "db-access",
+        "source": "extracted"
+      },
+      "to": "resource:db.User"
+    },
+    {
+      "evidence": [
+        {
+          "file": "apps/api/src/server.ts",
+          "line": 4
+        }
+      ],
+      "kind": "uses-env",
+      "provenance": {
+        "extractor": "env",
+        "source": "extracted"
+      },
+      "to": "resource:env.API_PORT"
+    },
+    {
+      "evidence": [
+        {
+          "file": "apps/api/src/auth.ts",
+          "line": 31
+        }
+      ],
+      "kind": "uses-env",
+      "provenance": {
+        "extractor": "env",
+        "source": "extracted"
+      },
+      "to": "resource:env.NODE_ENV"
+    },
+    {
+      "evidence": [
+        {
+          "file": "apps/api/src/routes/orders.ts",
+          "line": 41
+        }
+      ],
+      "kind": "writes",
+      "provenance": {
+        "extractor": "db-access",
+        "source": "extracted"
+      },
+      "to": "resource:db.Order"
+    },
+    {
+      "evidence": [
+        {
+          "file": "apps/api/src/routes/orders.ts",
+          "line": 35
+        },
+        {
+          "file": "apps/api/src/routes/products.ts",
+          "line": 31
+        }
+      ],
+      "kind": "writes",
+      "provenance": {
+        "extractor": "db-access",
+        "source": "extracted"
+      },
+      "to": "resource:db.Product"
+    },
+    {
+      "evidence": [
+        {
+          "file": "apps/api/src/auth.ts",
+          "line": 27
+        },
+        {
+          "file": "apps/api/src/routes/sessions.ts",
+          "line": 25
+        }
+      ],
+      "kind": "writes",
+      "provenance": {
+        "extractor": "db-access",
+        "source": "extracted"
+      },
+      "to": "resource:db.Session"
+    }
+  ],
+  "entryPoints": [
+    {
+      "id": "entry:http:DELETE /api/sessions",
+      "kind": "http",
+      "location": {
+        "file": "apps/api/src/routes/sessions.ts",
+        "line": 23
+      },
+      "provenance": {
+        "extractor": "express-routes",
+        "source": "extracted"
+      }
+    },
+    {
+      "id": "entry:http:GET /api/orders/:id",
+      "kind": "http",
+      "location": {
+        "file": "apps/api/src/routes/orders.ts",
+        "line": 60
+      },
+      "provenance": {
+        "extractor": "express-routes",
+        "source": "extracted"
+      }
+    },
+    {
+      "id": "entry:http:GET /api/products",
+      "kind": "http",
+      "location": {
+        "file": "apps/api/src/routes/products.ts",
+        "line": 13
+      },
+      "provenance": {
+        "extractor": "express-routes",
+        "source": "extracted"
+      }
+    },
+    {
+      "id": "entry:http:GET /health",
+      "kind": "http",
+      "location": {
+        "file": "apps/api/src/app.ts",
+        "line": 41
+      },
+      "provenance": {
+        "extractor": "express-routes",
+        "source": "extracted"
+      }
+    },
+    {
+      "id": "entry:http:POST /api/orders",
+      "kind": "http",
+      "location": {
+        "file": "apps/api/src/routes/orders.ts",
+        "line": 12
+      },
+      "provenance": {
+        "extractor": "express-routes",
+        "source": "extracted"
+      }
+    },
+    {
+      "id": "entry:http:POST /api/products",
+      "kind": "http",
+      "location": {
+        "file": "apps/api/src/routes/products.ts",
+        "line": 29
+      },
+      "provenance": {
+        "extractor": "express-routes",
+        "source": "extracted"
+      }
+    },
+    {
+      "id": "entry:http:POST /api/sessions",
+      "kind": "http",
+      "location": {
+        "file": "apps/api/src/routes/sessions.ts",
+        "line": 9
+      },
+      "provenance": {
+        "extractor": "express-routes",
+        "source": "extracted"
+      }
+    }
+  ],
+  "exports": [],
+  "files": {
+    "apps/api/package.json": "0fb86ceffbe1942f7e8e02e77ff229899a82b66c",
+    "apps/api/src/app.ts": "693665d9809dc186f56bd6ab6b44e92b4dfce99e",
+    "apps/api/src/auth.ts": "2e2cc8b1a80efcfa4f6e0a5dcdfdeb8b01e9d3f1",
+    "apps/api/src/cache.test.ts": "e3b585b4b8dc3a47e9c2f6f1b597ca8112b3a115",
+    "apps/api/src/cache.ts": "0a25d8964fbf9cfb4e8c1fba4d1c95f7da3f59f5",
+    "apps/api/src/cookies.test.ts": "ccea2d68cea86c82dc25dff58b03436fa2e52aec",
+    "apps/api/src/cookies.ts": "e092bd7306e2c81313c59f709adfea3865745f04",
+    "apps/api/src/pricing.test.ts": "c64752284d5f4f40230fec8049406bf49b10689e",
+    "apps/api/src/pricing.ts": "7695aec0d0a924e70f07b65007282167c726f875",
+    "apps/api/src/routes/orders.ts": "8086dfd5bed0050743145e157ce457afe218409d",
+    "apps/api/src/routes/products.ts": "3b1ec64d8b5e6c9fd28aa87de6cf5f335b32bf80",
+    "apps/api/src/routes/sessions.ts": "744e4eea84ab682c8cf74e67cb8c539ef1707a12",
+    "apps/api/src/server.ts": "bb58886a3cc60d2d2af441476c16c07d51aadc07",
+    "apps/api/src/validate.test.ts": "031db0d29d47aa705b5b8ff15960077d004769ba",
+    "apps/api/src/validate.ts": "5603897571a6a9e061eff906febf24982cd0ca61",
+    "apps/api/tsconfig.json": "564a5990051fdb8cee49fbbaf99734c1a23cf60a"
+  },
+  "framework": [
+    "express"
+  ],
+  "id": "component:api",
+  "include": [
+    "apps/api/**"
+  ],
+  "kind": "service",
+  "language": [
+    "typescript"
+  ],
+  "root": "apps/api",
+  "state": [
+    {
+      "id": "state:apps/api/src/cache.ts#productSearchCache",
+      "kind": "cache",
+      "location": {
+        "file": "apps/api/src/cache.ts",
+        "line": 11
+      },
+      "mutatedFrom": [
+        {
+          "file": "apps/api/src/cache.ts",
+          "line": 27
+        },
+        {
+          "file": "apps/api/src/cache.ts",
+          "line": 29
+        },
+        {
+          "file": "apps/api/src/cache.ts",
+          "line": 34
+        },
+        {
+          "file": "apps/api/src/cache.ts",
+          "line": 38
+        }
+      ],
+      "provenance": {
+        "extractor": "shared-state",
+        "source": "extracted"
+      }
+    },
+    {
+      "id": "state:apps/api/src/cache.ts#setInterval@42",
+      "kind": "timer",
+      "location": {
+        "file": "apps/api/src/cache.ts",
+        "line": 42
+      },
+      "mutatedFrom": [],
+      "provenance": {
+        "extractor": "shared-state",
+        "source": "extracted"
+      }
+    },
+    {
+      "id": "state:apps/api/src/server.ts#process.on:SIGINT",
+      "kind": "listener",
+      "location": {
+        "file": "apps/api/src/server.ts",
+        "line": 15
+      },
+      "mutatedFrom": [],
+      "provenance": {
+        "extractor": "shared-state",
+        "source": "extracted"
+      }
+    },
+    {
+      "id": "state:apps/api/src/server.ts#process.on:SIGTERM",
+      "kind": "listener",
+      "location": {
+        "file": "apps/api/src/server.ts",
+        "line": 14
+      },
+      "mutatedFrom": [],
+      "provenance": {
+        "extractor": "shared-state",
+        "source": "extracted"
+      }
+    }
+  ],
+  "summaryStatus": "missing"
+}

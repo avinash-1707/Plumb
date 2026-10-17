@@ -1,0 +1,33 @@
+{
+  "builtAtCommit": "0000000000000000000000000000000000000000",
+  "components": [
+    "component:api",
+    "component:db",
+    "component:web"
+  ],
+  "extractorFailures": [],
+  "extractors": {
+    "compose": "1",
+    "db-access": "1",
+    "depcruise-imports": "1",
+    "drizzle-schema": "1",
+    "env": "1",
+    "express-routes": "1",
+    "fetch-calls": "1",
+    "next-routes": "1",
+    "prisma-schema": "1",
+    "shared-state": "1",
+    "workspace": "1"
+  },
+  "schemaVersion": 1,
+  "unassignedFiles": [
+    ".env.example",
+    ".gitignore",
+    "README.md",
+    "docker-compose.yml",
+    "package.json",
+    "pnpm-lock.yaml",
+    "pnpm-workspace.yaml",
+    "tsconfig.base.json"
+  ]
+}

@@ -1,0 +1,119 @@
+{
+  "edges": [
+    {
+      "evidence": [
+        {
+          "file": "packages/db/prisma/seed.ts",
+          "line": 19
+        }
+      ],
+      "kind": "reads",
+      "provenance": {
+        "extractor": "db-access",
+        "source": "extracted"
+      },
+      "to": "resource:db.Product"
+    },
+    {
+      "evidence": [
+        {
+          "file": "packages/db/prisma.config.ts",
+          "line": 16
+        },
+        {
+          "file": "packages/db/src/client.ts",
+          "line": 5
+        }
+      ],
+      "kind": "uses-env",
+      "provenance": {
+        "extractor": "env",
+        "source": "extracted"
+      },
+      "to": "resource:env.DATABASE_URL"
+    },
+    {
+      "evidence": [
+        {
+          "file": "packages/db/src/client.ts",
+          "line": 16
+        }
+      ],
+      "kind": "uses-env",
+      "provenance": {
+        "extractor": "env",
+        "source": "extracted"
+      },
+      "to": "resource:env.NODE_ENV"
+    },
+    {
+      "evidence": [
+        {
+          "file": "packages/db/prisma/seed.ts",
+          "line": 20
+        }
+      ],
+      "kind": "writes",
+      "provenance": {
+        "extractor": "db-access",
+        "source": "extracted"
+      },
+      "to": "resource:db.Product"
+    },
+    {
+      "evidence": [
+        {
+          "file": "packages/db/prisma/seed.ts",
+          "line": 13
+        }
+      ],
+      "kind": "writes",
+      "provenance": {
+        "extractor": "db-access",
+        "source": "extracted"
+      },
+      "to": "resource:db.User"
+    }
+  ],
+  "entryPoints": [],
+  "exports": [
+    "Order",
+    "OrderItem",
+    "Product",
+    "Session",
+    "User",
+    "hashPassword",
+    "prisma",
+    "verifyPassword"
+  ],
+  "files": {
+    "packages/db/package.json": "cdbaaf82b6d682a90f74fb03f8a996c6747e56c4",
+    "packages/db/prisma.config.ts": "4e15fa5381a65b755ef28d80b5a1d485aed83244",
+    "packages/db/prisma/migrations/20261017171528_init/migration.sql": "62cec9d48179e5e0cdc87c5a48c798468d8b1e8d",
+    "packages/db/prisma/migrations/migration_lock.toml": "044d57cdb0d5b5bff3475112359a4ee70439bf78",
+    "packages/db/prisma/schema.prisma": "8aa97a4367481758b502dd24f04e568a40e5d65f",
+    "packages/db/prisma/seed.ts": "c8d6d06dcca3a32f7fba04c0ccb80cc8dfad11e0",
+    "packages/db/src/client.ts": "6de4e516c48c41695dd9271142a1c911cb62e8fd",
+    "packages/db/src/index.ts": "0f8d6d40278416bcc9ecdea662981c4b198ae12e",
+    "packages/db/src/password.test.ts": "fb87ba303a5635174015f281df46ff6a5c1b39b8",
+    "packages/db/src/password.ts": "85ad2388fde748e46887b65c9e78ecbeb1757a01",
+    "packages/db/tsconfig.json": "ee7450093a3926b48968f987974d90cb1c133c77",
+    "packages/db/vitest.config.ts": "7e0a88be4f41071bdb4892d3c23089ee78e1411b"
+  },
+  "framework": [
+    "prisma"
+  ],
+  "id": "component:db",
+  "include": [
+    "packages/db/**"
+  ],
+  "kind": "package",
+  "language": [
+    "prisma",
+    "sql",
+    "typescript"
+  ],
+  "root": "packages/db",
+  "state": [],
+  "summaryStatus": "missing"
+}

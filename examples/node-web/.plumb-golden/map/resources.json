@@ -1,0 +1,154 @@
+{
+  "resources": [
+    {
+      "definedAt": {
+        "file": "packages/db/prisma/schema.prisma",
+        "line": 43
+      },
+      "id": "resource:db.Order",
+      "kind": "db-table",
+      "provenance": {
+        "extractor": "prisma-schema",
+        "source": "extracted"
+      }
+    },
+    {
+      "definedAt": {
+        "file": "packages/db/prisma/schema.prisma",
+        "line": 52
+      },
+      "id": "resource:db.OrderItem",
+      "kind": "db-table",
+      "provenance": {
+        "extractor": "prisma-schema",
+        "source": "extracted"
+      }
+    },
+    {
+      "definedAt": {
+        "file": "packages/db/prisma/schema.prisma",
+        "line": 31
+      },
+      "id": "resource:db.Product",
+      "kind": "db-table",
+      "provenance": {
+        "extractor": "prisma-schema",
+        "source": "extracted"
+      }
+    },
+    {
+      "definedAt": {
+        "file": "packages/db/prisma/schema.prisma",
+        "line": 21
+      },
+      "id": "resource:db.Session",
+      "kind": "db-table",
+      "provenance": {
+        "extractor": "prisma-schema",
+        "source": "extracted"
+      }
+    },
+    {
+      "definedAt": {
+        "file": "packages/db/prisma/schema.prisma",
+        "line": 10
+      },
+      "id": "resource:db.User",
+      "kind": "db-table",
+      "provenance": {
+        "extractor": "prisma-schema",
+        "source": "extracted"
+      }
+    },
+    {
+      "definedAt": {
+        "file": ".env.example",
+        "line": 4
+      },
+      "id": "resource:env.API_PORT",
+      "kind": "env-var",
+      "provenance": {
+        "extractor": "env",
+        "source": "extracted"
+      }
+    },
+    {
+      "definedAt": {
+        "file": ".env.example",
+        "line": 5
+      },
+      "id": "resource:env.API_URL",
+      "kind": "env-var",
+      "provenance": {
+        "extractor": "env",
+        "source": "extracted"
+      }
+    },
+    {
+      "definedAt": null,
+      "id": "resource:env.CI",
+      "kind": "env-var",
+      "provenance": {
+        "extractor": "env",
+        "source": "extracted"
+      }
+    },
+    {
+      "definedAt": {
+        "file": ".env.example",
+        "line": 2
+      },
+      "id": "resource:env.DATABASE_URL",
+      "kind": "env-var",
+      "provenance": {
+        "extractor": "env",
+        "source": "extracted"
+      }
+    },
+    {
+      "definedAt": null,
+      "id": "resource:env.NODE_ENV",
+      "kind": "env-var",
+      "provenance": {
+        "extractor": "env",
+        "source": "extracted"
+      }
+    },
+    {
+      "definedAt": {
+        "file": ".env.example",
+        "line": 6
+      },
+      "id": "resource:env.PORT",
+      "kind": "env-var",
+      "provenance": {
+        "extractor": "env",
+        "source": "extracted"
+      }
+    },
+    {
+      "definedAt": {
+        "file": ".env.example",
+        "line": 3
+      },
+      "id": "resource:env.POSTGRES_PORT",
+      "kind": "env-var",
+      "provenance": {
+        "extractor": "env",
+        "source": "extracted"
+      }
+    },
+    {
+      "definedAt": {
+        "file": "docker-compose.yml",
+        "line": 2
+      },
+      "id": "resource:service.postgres",
+      "kind": "service",
+      "provenance": {
+        "extractor": "compose",
+        "source": "extracted"
+      }
+    }
+  ]
+}
