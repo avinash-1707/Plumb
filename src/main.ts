@@ -1,8 +1,10 @@
 import { parseArgs } from "node:util";
+import { impactCommand } from "./commands/impact.ts";
 import { mapCommand } from "./commands/map.ts";
 import { ConfigError } from "./config.ts";
 import { CouldNotCompleteError, UsageError } from "./errors.ts";
 import { ExitCode } from "./exit-codes.ts";
+import { GitError } from "./git.ts";
 import type { Io } from "./io.ts";
 import { readVersion } from "./version.ts";
 
@@ -11,7 +13,8 @@ export type { Io } from "./io.ts";
 const USAGE = `Usage: plumb <command> [options]
 
 Commands:
-  map           Build, show, and query the repo map (plumb map --help)
+  map           Build, update, check, show, and query the repo map (plumb map --help)
+  impact        Components and features a diff affects (plumb impact --help)
 
 Options:
   -h, --help     Show this help
@@ -20,6 +23,7 @@ Options:
 
 const COMMANDS: Record<string, (argv: readonly string[], io: Io) => Promise<ExitCode>> = {
   map: mapCommand,
+  impact: impactCommand,
 };
 
 function usageError(io: Io, message: string): ExitCode {
@@ -48,7 +52,7 @@ export async function run(argv: readonly string[], io: Io): Promise<ExitCode> {
         io.stderr(`plumb ${command ?? ""}: ${err.message}\n`);
         return ExitCode.InvalidUsage;
       }
-      if (err instanceof CouldNotCompleteError || err instanceof ConfigError) {
+      if (err instanceof CouldNotCompleteError || err instanceof ConfigError || err instanceof GitError) {
         io.stderr(`plumb ${command ?? ""}: ${err.message}\n`);
         return ExitCode.CouldNotComplete;
       }
