@@ -1,20 +1,26 @@
 import { parseArgs } from "node:util";
+import { mapCommand } from "./commands/map.ts";
+import { ConfigError } from "./config.ts";
+import { CouldNotCompleteError, UsageError } from "./errors.ts";
 import { ExitCode } from "./exit-codes.ts";
+import type { Io } from "./io.ts";
 import { readVersion } from "./version.ts";
 
-export interface Io {
-  stdout: (text: string) => void;
-  stderr: (text: string) => void;
-}
+export type { Io } from "./io.ts";
 
 const USAGE = `Usage: plumb <command> [options]
+
+Commands:
+  map           Build, show, and query the repo map (plumb map --help)
 
 Options:
   -h, --help     Show this help
   -v, --version  Show the version
-
-No commands are implemented yet.
 `;
+
+const COMMANDS: Record<string, (argv: readonly string[], io: Io) => Promise<ExitCode>> = {
+  map: mapCommand,
+};
 
 function usageError(io: Io, message: string): ExitCode {
   io.stderr(`plumb: ${message}\n\n${USAGE}`);
@@ -26,7 +32,30 @@ function isParseArgsError(err: unknown): err is Error & { code: string } {
   return err instanceof Error && "code" in err && typeof err.code === "string" && err.code.startsWith("ERR_PARSE_ARGS_");
 }
 
-export function run(argv: readonly string[], io: Io): ExitCode {
+export async function run(argv: readonly string[], io: Io): Promise<ExitCode> {
+  const commandIndex = argv.findIndex((a) => !a.startsWith("-"));
+  const command = commandIndex === -1 ? undefined : argv[commandIndex];
+  const handler = command === undefined ? undefined : COMMANDS[command];
+
+  if (handler !== undefined && commandIndex > 0) {
+    return usageError(io, `options go after the command: plumb ${command ?? ""} ${argv.slice(0, commandIndex).join(" ")}`);
+  }
+  if (handler !== undefined) {
+    try {
+      return await handler(argv.slice(1), io);
+    } catch (err) {
+      if (isParseArgsError(err) || err instanceof UsageError) {
+        io.stderr(`plumb ${command ?? ""}: ${err.message}\n`);
+        return ExitCode.InvalidUsage;
+      }
+      if (err instanceof CouldNotCompleteError || err instanceof ConfigError) {
+        io.stderr(`plumb ${command ?? ""}: ${err.message}\n`);
+        return ExitCode.CouldNotComplete;
+      }
+      throw err;
+    }
+  }
+
   let parsed;
   try {
     parsed = parseArgs({
@@ -52,18 +81,18 @@ export function run(argv: readonly string[], io: Io): ExitCode {
     return ExitCode.Ok;
   }
 
-  const [command] = parsed.positionals;
-  if (command === undefined) return usageError(io, "missing command");
-  return usageError(io, `unknown command "${command}"`);
+  const [first] = parsed.positionals;
+  if (first === undefined) return usageError(io, "missing command");
+  return usageError(io, `unknown command "${first}"`);
 }
 
 /**
  * Process boundary: an unexpected error is a Plumb crash, not a failed check, so it maps to
  * CouldNotComplete (2). Letting it escape would exit 1 and read as "check failed" to hooks and CI.
  */
-export function main(argv: readonly string[], io: Io): ExitCode {
+export async function main(argv: readonly string[], io: Io): Promise<ExitCode> {
   try {
-    return run(argv, io);
+    return await run(argv, io);
   } catch (err) {
     const detail = err instanceof Error ? (err.stack ?? err.message) : String(err);
     io.stderr(`plumb: internal error\n${detail}\n`);
