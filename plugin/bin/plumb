@@ -1,0 +1,13 @@
+#!/bin/sh
+# Puts `plumb` on the Bash tool's PATH while the plugin is enabled.
+# In a Plumb checkout, run that checkout's CLI (source first, so it can't be stale); otherwise the published package.
+set -eu
+here=$(cd "$(dirname "$0")" && pwd)
+repo="$here/../.."
+if [ -f "$repo/src/cli.ts" ]; then
+  exec node "$repo/src/cli.ts" "$@"
+fi
+if [ -f "$repo/dist/cli.js" ]; then
+  exec node "$repo/dist/cli.js" "$@"
+fi
+exec npx -y @plumb-cli/plumb "$@"
