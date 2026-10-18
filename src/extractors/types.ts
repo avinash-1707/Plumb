@@ -1,5 +1,6 @@
 import type { Config } from "../config.ts";
 import type { ComponentKind, Edge, EntryPoint, ExtractorFailure, NodeId, Resource, SharedState } from "../map/types.ts";
+import type { FactCache } from "../map/cache.ts";
 import type { SourceCache } from "./source.ts";
 
 export interface PackageJson {
@@ -39,7 +40,11 @@ export interface ExtractorContext {
   /** Facts from extractors that ran earlier in the pipeline. */
   entryPoints: ReadonlyArray<{ component: NodeId; entry: EntryPoint }>;
   resources: readonly Resource[];
+  /** Parses on demand; extractors reach it only on a cache miss. */
   sources: SourceCache;
+  cache: FactCache;
+  /** Git blob SHA of a project file's working-tree content. */
+  sha(file: string): string;
 }
 
 export interface Facts {

@@ -5,6 +5,7 @@ import { forEachDescendant, importBindings, isCodeFile, locOf, stringValue } fro
 import { type Extractor, extracted } from "./types.ts";
 
 const ID = "fetch-calls";
+const VERSION = "1";
 const AXIOS_METHODS = new Set(["get", "post", "put", "patch", "delete", "head", "options"]);
 const HOLE = "\u0000";
 
@@ -82,6 +83,20 @@ interface Call {
   node: ts.Node;
 }
 
+/** A same-origin request found in a file, in cacheable form. */
+export interface RawCall {
+  pattern: UrlPattern;
+  method: string | null;
+  line: number;
+}
+
+export function fileCalls(sf: ts.SourceFile): RawCall[] {
+  return httpCalls(sf).flatMap((call) => {
+    const pattern = urlPattern(call.url);
+    return pattern === null ? [] : [{ pattern, method: call.method, line: locOf(sf, call.node).line }];
+  });
+}
+
 function httpCalls(sf: ts.SourceFile): Call[] {
   const bindings = importBindings(sf);
   const isAxios = (n: ts.Node): boolean => ts.isIdentifier(n) && bindings.get(n.text)?.module === "axios" && bindings.get(n.text)?.imported === "default";
@@ -107,7 +122,7 @@ function httpCalls(sf: ts.SourceFile): Call[] {
 
 export const fetchCalls: Extractor = {
   id: ID,
-  version: "1",
+  version: VERSION,
   run(ctx) {
     const routes = ctx.entryPoints.flatMap(({ entry }) => {
       const parsed = parseHttpEntryId(entry.id);
@@ -118,10 +133,8 @@ export const fetchCalls: Extractor = {
 
     for (const component of ctx.components) {
       for (const file of ctx.filesOf(component.id).filter(isCodeFile)) {
-        const sf = ctx.sources.get(file);
-        for (const call of httpCalls(sf)) {
-          const pattern = urlPattern(call.url);
-          if (pattern === null) continue;
+        for (const call of ctx.cache.file(ID, VERSION, file, () => fileCalls(ctx.sources.get(file)))) {
+          const { pattern } = call;
           const scored = routes
             .filter((r) => call.method === null || r.method === call.method || r.method === "ALL")
             .flatMap((r) => {
@@ -138,7 +151,7 @@ export const fetchCalls: Extractor = {
               : pattern.literal && call.method !== null
                 ? extracted(ID)
                 : { source: "inferred", confidence: "high" };
-          for (const t of top) edges.push({ component: component.id, edge: { kind: "calls-http", to: t.id, evidence: [locOf(sf, call.node)], provenance } });
+          for (const t of top) edges.push({ component: component.id, edge: { kind: "calls-http", to: t.id, evidence: [{ file, line: call.line }], provenance } });
         }
       }
     }

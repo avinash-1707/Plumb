@@ -18,7 +18,7 @@ function goldenFiles(): Map<string, string> {
 }
 
 async function extract(root: string): Promise<Map<string, string>> {
-  const { map } = await buildMap({ root, config: CONFIG });
+  const { map } = await buildMap({ root, config: CONFIG, cache: "off" });
   return renderMap({ ...map, manifest: { ...map.manifest, builtAtCommit: PLACEHOLDER_HEAD } });
 }
 
@@ -41,7 +41,7 @@ describe("map of examples/node-web", () => {
     });
     gitInit(copy);
 
-    const { map } = await buildMap({ root: copy, config: CONFIG });
+    const { map } = await buildMap({ root: copy, config: CONFIG, cache: "off" });
     const failures = map.manifest.extractorFailures;
     expect(failures.map((f) => [f.extractor, f.component])).toEqual([
       ["depcruise-imports", "component:api"],

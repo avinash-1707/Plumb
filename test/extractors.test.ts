@@ -1,9 +1,9 @@
 import { execFileSync } from "node:child_process";
 import ts from "typescript";
 import { describe, expect, it } from "vitest";
-import { drizzleAccesses, prismaAccesses } from "../src/extractors/db-access.ts";
+import { dbCandidates, drizzleAccesses, prismaAccesses } from "../src/extractors/db-access.ts";
 import { envReads } from "../src/extractors/env.ts";
-import { expressEntries, joinRoutePath } from "../src/extractors/express-routes.ts";
+import { expressEntries, fileRoutes, joinRoutePath } from "../src/extractors/express-routes.ts";
 import { matchRoute, urlPattern } from "../src/extractors/fetch-calls.ts";
 import { appRoute, exportedHttpMethods, pagesRoute } from "../src/extractors/next-routes.ts";
 import { parsePrismaModels } from "../src/extractors/prisma-schema.ts";
@@ -98,7 +98,8 @@ describe("Express routes", () => {
       "src/loose.ts": ['import { Router } from "express";', "const loose = Router();", 'loose.get(path, h);', 'loose.patch("/loose", h);'].join("\n"),
     });
     const files = ["src/admin.ts", "src/app.ts", "src/loose.ts", "src/orders.ts"];
-    const scan = expressEntries(files, new SourceCache(root));
+    const sources = new SourceCache(root);
+    const scan = expressEntries(files, (f) => fileRoutes(sources.get(f)));
     expect(scan.unresolved).toEqual([]);
     const ids = scan.entries.map((e) => e.id).sort();
     expect(ids).toEqual([
@@ -130,7 +131,8 @@ describe("Express routes", () => {
       ].join("\n"),
       "src/legacy.js": 'const { Router } = require("express");\nconst r = Router();\nr.get("/x", h);\nmodule.exports = r;',
     });
-    const scan = expressEntries(["src/app.ts", "src/legacy.js"], new SourceCache(root), new Set(["express", "cors"]));
+    const sources = new SourceCache(root);
+    const scan = expressEntries(["src/app.ts", "src/legacy.js"], (f) => fileRoutes(sources.get(f), new Set(["express", "cors"])));
     expect(scan.unresolved.map((u) => [u.loc.line, u.prefix, u.what])).toEqual([
       [10, "/users", "users"],
       [11, "/v2", "makeRouter()"],
@@ -147,8 +149,10 @@ describe("Express routes", () => {
       "src/b.ts": 'import { Router } from "express";\nimport { a } from "./a.ts";\nexport const b = Router();\nb.use("/a", a);\nb.get("/pong", h);',
     };
     const root = makeProject(files);
-    const forward = expressEntries(["src/a.ts", "src/app.ts", "src/b.ts"], new SourceCache(root)).entries.map((e) => e.id).sort();
-    const backward = expressEntries(["src/b.ts", "src/app.ts", "src/a.ts"], new SourceCache(root)).entries.map((e) => e.id).sort();
+    const sources = new SourceCache(root);
+    const routesOf = (f: string): ReturnType<typeof fileRoutes> => fileRoutes(sources.get(f));
+    const forward = expressEntries(["src/a.ts", "src/app.ts", "src/b.ts"], routesOf).entries.map((e) => e.id).sort();
+    const backward = expressEntries(["src/b.ts", "src/app.ts", "src/a.ts"], routesOf).entries.map((e) => e.id).sort();
     expect(forward).toEqual(backward);
     expect(forward).toContain("entry:http:GET /root/b/pong");
   });
@@ -179,7 +183,7 @@ describe("database access", () => {
         "await prisma.user.$count();",
       ].join("\n"),
     );
-    const found = prismaAccesses(sf, new Map([["user", "User"], ["orderItem", "order_items"]])).map((a) => [a.kind, a.table, a.loc.line]);
+    const found = prismaAccesses("src/x.ts", dbCandidates(sf), new Map([["user", "User"], ["orderItem", "order_items"]])).map((a) => [a.kind, a.table, a.loc.line]);
     expect(found).toEqual([
       ["reads", "User", 1],
       ["writes", "order_items", 2],
@@ -199,7 +203,7 @@ describe("database access", () => {
         "Array.from(users);",
       ].join("\n"),
     );
-    const found = drizzleAccesses(sf, new Map([["orders", "orders"]])).map((a) => [a.kind, a.table, a.loc.line]);
+    const found = drizzleAccesses("src/x.ts", dbCandidates(sf), new Map([["orders", "orders"]])).map((a) => [a.kind, a.table, a.loc.line]);
     expect(found).toEqual([
       ["reads", "users", 4],
       ["writes", "orders", 5],

@@ -2,11 +2,12 @@ import path from "node:path";
 import ts from "typescript";
 import { httpEntryId } from "../map/ids.ts";
 import type { EntryPoint, ExtractorFailure, Loc, NodeId } from "../map/types.ts";
-import { importBindings, isCodeFile, locOf, stringValue, type SourceCache } from "./source.ts";
+import { importBindings, isCodeFile, locOf, stringValue } from "./source.ts";
 import { type Extractor, extracted, failure } from "./types.ts";
 import { declaredDependencies } from "./workspace.ts";
 
 const ID = "express-routes";
+const VERSION = "1";
 const METHODS: Record<string, string> = {
   get: "GET",
   post: "POST",
@@ -21,14 +22,16 @@ const RESOLVE_SUFFIXES = ["", ".ts", ".tsx", ".mts", ".js", ".mjs", ".cjs", "/in
 
 type ChildRef = { kind: "local"; name: string } | { kind: "import"; module: string; imported: string };
 
-interface FileRoutes {
-  routers: Map<string, { isApp: boolean }>;
+/** One file's routers, routes, and mounts, in cacheable (JSON) form. */
+export interface FileRoutes {
+  /** local name -> whether it is an express() app rather than a Router() */
+  routers: Record<string, boolean>;
   routes: Array<{ router: string; method: string; path: string; loc: Loc }>;
   mounts: Array<{ parent: string; prefix: string; child: ChildRef; loc: Loc }>;
   /** use(prefix, x) where x might be a router Plumb can't follow; routes under it would lose the prefix. */
   unresolvedMounts: Array<{ prefix: string; loc: Loc; what: string }>;
   /** exported name -> local name */
-  exported: Map<string, string>;
+  exported: Record<string, string>;
 }
 
 function hasExportModifier(node: ts.Node): boolean {
@@ -68,20 +71,21 @@ export function fileRoutes(sf: ts.SourceFile, packages: ReadonlySet<string> = ne
 
   // Names declared in this file that are not routers (handlers, middleware).
   const localValues = new Set<string>();
-  const result: FileRoutes = { routers: new Map(), routes: [], mounts: [], unresolvedMounts: [], exported: new Map() };
+  const result: FileRoutes = { routers: {}, routes: [], mounts: [], unresolvedMounts: [], exported: {} };
+  const isRouter = (name: string): boolean => Object.hasOwn(result.routers, name);
 
   const visit = (node: ts.Node): void => {
     if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name)) {
       const init = node.initializer;
-      if (init !== undefined && ts.isCallExpression(init) && isExpressDefault(init.expression)) result.routers.set(node.name.text, { isApp: true });
-      else if (init !== undefined && ts.isCallExpression(init) && isRouterFactory(init.expression)) result.routers.set(node.name.text, { isApp: false });
+      if (init !== undefined && ts.isCallExpression(init) && isExpressDefault(init.expression)) result.routers[node.name.text] = true;
+      else if (init !== undefined && ts.isCallExpression(init) && isRouterFactory(init.expression)) result.routers[node.name.text] = false;
       else localValues.add(node.name.text);
     }
     if (ts.isFunctionDeclaration(node) && node.name !== undefined) localValues.add(node.name.text);
     if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression) && ts.isIdentifier(node.expression.expression)) {
       const target = node.expression.expression.text;
       const method = node.expression.name.text;
-      if (result.routers.has(target)) {
+      if (isRouter(target)) {
         const routePath = stringValue(node.arguments[0]);
         const upper = METHODS[method];
         // app.get("setting") with one argument reads an app setting; a route always has a handler.
@@ -92,7 +96,7 @@ export function fileRoutes(sf: ts.SourceFile, packages: ReadonlySet<string> = ne
           const prefix = stringValue(node.arguments[0]);
           const loc = locOf(sf, node);
           for (const arg of node.arguments.slice(prefix === undefined ? 0 : 1)) {
-            if (ts.isIdentifier(arg) && result.routers.has(arg.text)) {
+            if (ts.isIdentifier(arg) && isRouter(arg.text)) {
               result.mounts.push({ parent: target, prefix: prefix ?? "", child: { kind: "local", name: arg.text }, loc });
               continue;
             }
@@ -116,12 +120,12 @@ export function fileRoutes(sf: ts.SourceFile, packages: ReadonlySet<string> = ne
 
   for (const statement of sf.statements) {
     if (ts.isVariableStatement(statement) && hasExportModifier(statement)) {
-      for (const decl of statement.declarationList.declarations) if (ts.isIdentifier(decl.name)) result.exported.set(decl.name.text, decl.name.text);
+      for (const decl of statement.declarationList.declarations) if (ts.isIdentifier(decl.name)) result.exported[decl.name.text] = decl.name.text;
     }
     if (ts.isExportDeclaration(statement) && statement.moduleSpecifier === undefined && statement.exportClause !== undefined && ts.isNamedExports(statement.exportClause)) {
-      for (const el of statement.exportClause.elements) result.exported.set(el.name.text, (el.propertyName ?? el.name).text);
+      for (const el of statement.exportClause.elements) result.exported[el.name.text] = (el.propertyName ?? el.name).text;
     }
-    if (ts.isExportAssignment(statement) && ts.isIdentifier(statement.expression)) result.exported.set("default", statement.expression.text);
+    if (ts.isExportAssignment(statement) && ts.isIdentifier(statement.expression)) result.exported.default = statement.expression.text;
   }
   return result;
 }
@@ -149,9 +153,9 @@ export interface ExpressScan {
 }
 
 /** All Express routes in a set of files, with mount prefixes composed across relative imports. */
-export function expressEntries(files: readonly string[], sources: SourceCache, packages: ReadonlySet<string> = new Set()): ExpressScan {
+export function expressEntries(files: readonly string[], routesOf: (file: string) => FileRoutes): ExpressScan {
   const fileSet = new Set(files);
-  const perFile = new Map(files.filter(isCodeFile).map((f) => [f, fileRoutes(sources.get(f), packages)]));
+  const perFile = new Map(files.filter(isCodeFile).map((f) => [f, routesOf(f)]));
   const key = (file: string, local: string): string => `${file}#${local}`;
   const unresolved: ExpressScan["unresolved"] = [];
 
@@ -164,8 +168,8 @@ export function expressEntries(files: readonly string[], sources: SourceCache, p
       else {
         const target = resolveRelative(file, mount.child.module, fileSet);
         const targetFacts = target === null ? undefined : perFile.get(target);
-        const local = targetFacts?.exported.get(mount.child.imported);
-        if (target !== null && local !== undefined && targetFacts?.routers.has(local) === true) childKey = key(target, local);
+        const local = targetFacts !== undefined && Object.hasOwn(targetFacts.exported, mount.child.imported) ? targetFacts.exported[mount.child.imported] : undefined;
+        if (target !== null && local !== undefined && targetFacts !== undefined && Object.hasOwn(targetFacts.routers, local)) childKey = key(target, local);
         else if (local === undefined && mount.prefix !== "") {
           // The import exists but Plumb can't see what it exports (module.exports, re-export): not silent.
           unresolved.push({ loc: mount.loc, prefix: mount.prefix, what: `${mount.child.imported} from "${mount.child.module}"` });
@@ -208,12 +212,16 @@ export function expressEntries(files: readonly string[], sources: SourceCache, p
 
 export const expressRoutes: Extractor = {
   id: ID,
-  version: "1",
+  version: VERSION,
   run(ctx) {
     const entryPoints: Array<{ component: NodeId; entry: EntryPoint }> = [];
     const failures: ExtractorFailure[] = [];
     for (const component of ctx.components.filter((c) => c.framework.includes("express"))) {
-      const scan = expressEntries(ctx.filesOf(component.id), ctx.sources, new Set(declaredDependencies(component.packageJson)));
+      const packages = declaredDependencies(component.packageJson);
+      const packageSet = new Set(packages);
+      const scan = expressEntries(ctx.filesOf(component.id), (file) =>
+        ctx.cache.file(ID, VERSION, file, () => fileRoutes(ctx.sources.get(file), packageSet), packages.join(",")),
+      );
       for (const { id, loc } of scan.entries) {
         entryPoints.push({ component: component.id, entry: { id, kind: "http", location: loc, provenance: extracted(ID) } });
       }

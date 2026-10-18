@@ -6,18 +6,20 @@ import { MAP_DIR } from "./build.ts";
 import { componentFileName } from "./ids.ts";
 import type { Component, Manifest, RepoMap, Resources } from "./types.ts";
 
+/** Writes one map file if its content differs; returns whether it did. */
+export function writeOne(root: string, rel: string, content: string): boolean {
+  const file = path.join(root, MAP_DIR, rel);
+  if (existsSync(file) && readFileSync(file, "utf8") === content) return false;
+  mkdirSync(path.dirname(file), { recursive: true });
+  writeFileSync(file, content);
+  return true;
+}
+
 /** Writes changed files only and removes component files for components that no longer exist. Summaries (.md) are left alone. */
 export function writeMap(root: string, files: ReadonlyMap<string, string>): { changed: string[]; removed: string[] } {
   const dir = path.join(root, MAP_DIR);
   mkdirSync(path.join(dir, "components"), { recursive: true });
-  const changed: string[] = [];
-  for (const [rel, content] of files) {
-    const file = path.join(dir, rel);
-    if (!existsSync(file) || readFileSync(file, "utf8") !== content) {
-      writeFileSync(file, content);
-      changed.push(rel);
-    }
-  }
+  const changed = [...files].filter(([rel, content]) => writeOne(root, rel, content)).map(([rel]) => rel);
   const removed: string[] = [];
   for (const name of readdirSync(path.join(dir, "components"))) {
     const rel = `components/${name}`;
@@ -27,6 +29,21 @@ export function writeMap(root: string, files: ReadonlyMap<string, string>): { ch
     }
   }
   return { changed, removed };
+}
+
+/** The map files currently on disk, keyed like renderMap's output; empty when there is no map yet. */
+export function readMapFiles(root: string): Map<string, string> {
+  const dir = path.join(root, MAP_DIR);
+  const files = new Map<string, string>();
+  for (const rel of ["manifest.json", "resources.json"]) {
+    if (existsSync(path.join(dir, rel))) files.set(rel, readFileSync(path.join(dir, rel), "utf8"));
+  }
+  if (existsSync(path.join(dir, "components"))) {
+    for (const name of readdirSync(path.join(dir, "components")).filter((n) => n.endsWith(".json")).sort()) {
+      files.set(`components/${name}`, readFileSync(path.join(dir, "components", name), "utf8"));
+    }
+  }
+  return files;
 }
 
 function readValidated(root: string, rel: string, schema: SchemaName): unknown {

@@ -5,6 +5,7 @@ import { forEachDescendant, isCodeFile, locOf, stringValue } from "./source.ts";
 import { type Extractor, extracted } from "./types.ts";
 
 const ID = "shared-state";
+const VERSION = "1";
 const COLLECTIONS = new Set(["Map", "Set", "WeakMap", "WeakSet"]);
 const COLLECTION_MUTATORS = new Set(["set", "add", "delete", "clear"]);
 const TIMERS = new Set(["setInterval", "setTimeout"]);
@@ -95,12 +96,13 @@ export function moduleState(sf: ts.SourceFile): SharedState[] {
 
 export const sharedState: Extractor = {
   id: ID,
-  version: "1",
+  version: VERSION,
   run(ctx) {
     const state: Array<{ component: NodeId; state: SharedState }> = [];
     for (const component of ctx.components) {
       for (const file of ctx.filesOf(component.id).filter(isCodeFile)) {
-        for (const s of moduleState(ctx.sources.get(file))) state.push({ component: component.id, state: s });
+        const found = ctx.cache.file(ID, VERSION, file, () => moduleState(ctx.sources.get(file)));
+        for (const s of found) state.push({ component: component.id, state: s });
       }
     }
     return { state };

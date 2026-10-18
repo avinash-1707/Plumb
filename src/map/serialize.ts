@@ -92,11 +92,11 @@ export function serializeJson(value: unknown): string {
 }
 
 /**
- * Hash of the facts a summary describes: the component's public shape. File hashes, evidence lines, and
- * locations are left out so internal-only edits don't stale a summary (doc 3, incremental update step 4);
- * summaryStatus is left out because it depends on this hash.
+ * Hash of a component's public shape. File hashes, evidence lines, and locations are left out so internal-only
+ * edits don't stale a summary (doc 3, incremental update step 4); summaryStatus is left out because it depends
+ * on this hash.
  */
-export function factsVersion(component: Component): string {
+export function publicFactsHash(component: Component): string {
   const c = normalizeComponent(component);
   const publicFacts = {
     id: c.id,
@@ -108,4 +108,33 @@ export function factsVersion(component: Component): string {
     state: c.state.map((s) => ({ id: s.id, kind: s.kind })),
   };
   return createHash("sha256").update(serializeJson(publicFacts)).digest("hex");
+}
+
+/** Components this one depends on: targets of its imports, and owners of the routes it calls. */
+export function dependenciesOf(component: Component, components: readonly Component[]): string[] {
+  const ownersOf = new Map<string, string[]>();
+  for (const c of components) for (const e of c.entryPoints) ownersOf.set(e.id, [...(ownersOf.get(e.id) ?? []), c.id]);
+  const deps = new Set<string>();
+  for (const edge of component.edges) {
+    if (edge.kind === "imports") deps.add(edge.to);
+    if (edge.kind === "calls-http") for (const owner of ownersOf.get(edge.to) ?? []) deps.add(owner);
+  }
+  deps.delete(component.id);
+  return [...deps].sort(compareStrings);
+}
+
+/**
+ * What a summary's "Facts version" must equal: the component's public facts plus those of each component it
+ * depends on, so a dependency's export or edge change stales its dependents' summaries too (doc 3 step 4)
+ * without Plumb storing any extra state.
+ */
+export function factsVersions(components: readonly Component[]): Map<string, string> {
+  const byId = new Map(components.map((c) => [c.id, c]));
+  const publicHash = new Map(components.map((c) => [c.id, publicFactsHash(c)]));
+  return new Map(
+    components.map((c) => {
+      const deps = dependenciesOf(c, components).filter((id) => byId.has(id)).map((id) => [id, publicHash.get(id) ?? ""]);
+      return [c.id, createHash("sha256").update(serializeJson({ self: publicHash.get(c.id), deps })).digest("hex")];
+    }),
+  );
 }

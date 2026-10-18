@@ -7,6 +7,7 @@ import { forEachDescendant, isCodeFile, isProcessEnv, locOf } from "./source.ts"
 import { type Extractor, extracted } from "./types.ts";
 
 const ID = "env";
+const VERSION = "1";
 const ENV_FILES = new Set([".env.example", ".env.sample", ".env.template", ".env.dist"]);
 const KEY = /^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=/;
 
@@ -39,7 +40,7 @@ export function envReads(sf: ts.SourceFile): Array<{ name: string; loc: Loc }> {
 
 export const env: Extractor = {
   id: ID,
-  version: "1",
+  version: VERSION,
   run(ctx) {
     const defined = new Map<string, Loc>();
     for (const file of ctx.files.filter((f) => ENV_FILES.has(path.posix.basename(f))).sort(compareStrings)) {
@@ -54,7 +55,7 @@ export const env: Extractor = {
     for (const component of ctx.components) {
       const byName = new Map<string, Loc[]>();
       for (const file of ctx.filesOf(component.id).filter(isCodeFile)) {
-        for (const read of envReads(ctx.sources.get(file))) {
+        for (const read of ctx.cache.file(ID, VERSION, file, () => envReads(ctx.sources.get(file)))) {
           byName.set(read.name, [...(byName.get(read.name) ?? []), read.loc]);
         }
       }

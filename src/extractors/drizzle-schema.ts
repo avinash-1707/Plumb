@@ -1,10 +1,11 @@
 import ts from "typescript";
 import { dbTableId } from "../map/ids.ts";
 import type { Loc, Resource } from "../map/types.ts";
-import { forEachDescendant, isCodeFile, locOf, stringValue, type SourceCache } from "./source.ts";
-import { type Extractor, extracted } from "./types.ts";
+import { forEachDescendant, isCodeFile, locOf, stringValue } from "./source.ts";
+import { type Extractor, type ExtractorContext, extracted } from "./types.ts";
 
 const ID = "drizzle-schema";
+const VERSION = "1";
 const TABLE_FACTORIES = new Set(["pgTable", "mysqlTable", "sqliteTable"]);
 
 export interface DrizzleTable {
@@ -27,16 +28,18 @@ export function drizzleTables(sf: ts.SourceFile): DrizzleTable[] {
   return tables;
 }
 
-/** Drizzle tables across the project; only files that import drizzle-orm are parsed. */
-export function projectDrizzleTables(files: readonly string[], sources: SourceCache): DrizzleTable[] {
-  return files.filter((f) => isCodeFile(f) && sources.text(f).includes("drizzle-orm")).flatMap((f) => drizzleTables(sources.get(f)));
+/** Drizzle tables across the project; only files that mention drizzle-orm are parsed. */
+export function projectDrizzleTables(ctx: ExtractorContext): DrizzleTable[] {
+  return ctx.files
+    .filter(isCodeFile)
+    .flatMap((f) => ctx.cache.file(ID, VERSION, f, () => (ctx.sources.text(f).includes("drizzle-orm") ? drizzleTables(ctx.sources.get(f)) : [])));
 }
 
 export const drizzleSchema: Extractor = {
   id: ID,
-  version: "1",
+  version: VERSION,
   run(ctx) {
-    const resources: Resource[] = projectDrizzleTables(ctx.files, ctx.sources).map((t) => ({
+    const resources: Resource[] = projectDrizzleTables(ctx).map((t) => ({
       id: dbTableId(t.table),
       kind: "db-table",
       definedAt: t.loc,

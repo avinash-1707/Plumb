@@ -1,16 +1,19 @@
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { cruise, type ICruiseOptions, type ICruiseResult } from "dependency-cruiser";
 import extractTSConfig from "dependency-cruiser/config-utl/extract-ts-config";
 import ts from "typescript";
 import { compareStrings } from "../map/serialize.ts";
 import type { Edge, ExtractorFailure, Loc, NodeId } from "../map/types.ts";
 import { resolveRelative } from "./express-routes.ts";
-import { importSiteLocs, isCodeFile, type SourceCache } from "./source.ts";
+import { importSiteLocs, isCodeFile } from "./source.ts";
 import { type ComponentSeed, type Extractor, type ExtractorContext, extracted, failure, type PackageJson } from "./types.ts";
 import { declaredDependencies } from "./workspace.ts";
 
 const ID = "depcruise-imports";
+const VERSION = "1";
+const CONFIG_FILE = /(^|\/)(package\.json|tsconfig[^/]*\.json|pnpm-lock\.yaml|package-lock\.json|yarn\.lock)$/;
 
 const CRUISE_OPTIONS: ICruiseOptions = {
   tsPreCompilationDeps: true,
@@ -23,6 +26,19 @@ const CRUISE_OPTIONS: ICruiseOptions = {
     extensions: [".ts", ".tsx", ".d.ts", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs", ".json"],
   },
 };
+
+let cruiserVersion: string | undefined;
+
+/** dependency-cruiser's own version, read from its package.json (it exports none). */
+export function dependencyCruiserVersion(): string {
+  if (cruiserVersion === undefined) {
+    let dir = path.dirname(fileURLToPath(import.meta.resolve("dependency-cruiser")));
+    while (!existsSync(path.join(dir, "package.json")) && dir !== path.dirname(dir)) dir = path.dirname(dir);
+    const pkg: unknown = JSON.parse(readFileSync(path.join(dir, "package.json"), "utf8"));
+    cruiserVersion = typeof pkg === "object" && pkg !== null && "version" in pkg && typeof pkg.version === "string" ? pkg.version : "unknown";
+  }
+  return cruiserVersion;
+}
 
 function isInstalled(root: string, componentRoot: string, dependency: string): boolean {
   let dir = path.resolve(root, componentRoot);
@@ -67,31 +83,32 @@ function bindingNames(name: ts.BindingName): string[] {
   return name.elements.flatMap((el) => (ts.isOmittedExpression(el) ? [] : bindingNames(el.name)));
 }
 
-/** Names a module exports, following `export * from "./relative"`. */
-export function exportedNames(file: string, sources: SourceCache, files: ReadonlySet<string>, seen = new Set<string>()): string[] {
-  if (seen.has(file)) return [];
-  seen.add(file);
-  const sf = sources.get(file);
-  const names: string[] = [];
+/** What one file exports directly, plus the relative modules it re-exports with `export *`. */
+export interface FileExports {
+  names: string[];
+  stars: string[];
+}
+
+export function fileExports(sf: ts.SourceFile): FileExports {
+  const result: FileExports = { names: [], stars: [] };
   for (const statement of sf.statements) {
     if (ts.isExportDeclaration(statement)) {
       const clause = statement.exportClause;
-      if (clause !== undefined && ts.isNamedExports(clause)) names.push(...clause.elements.map((el) => el.name.text));
-      else if (clause !== undefined && ts.isNamespaceExport(clause)) names.push(clause.name.text);
+      if (clause !== undefined && ts.isNamedExports(clause)) result.names.push(...clause.elements.map((el) => el.name.text));
+      else if (clause !== undefined && ts.isNamespaceExport(clause)) result.names.push(clause.name.text);
       else if (statement.moduleSpecifier !== undefined && ts.isStringLiteral(statement.moduleSpecifier) && statement.moduleSpecifier.text.startsWith(".")) {
-        const target = resolveRelative(file, statement.moduleSpecifier.text, files);
-        if (target !== null) names.push(...exportedNames(target, sources, files, seen));
+        result.stars.push(statement.moduleSpecifier.text);
       }
       continue;
     }
     if (ts.isExportAssignment(statement)) {
-      names.push("default");
+      result.names.push("default");
       continue;
     }
     const modifiers = ts.canHaveModifiers(statement) ? (ts.getModifiers(statement) ?? []) : [];
     if (!modifiers.some((m) => m.kind === ts.SyntaxKind.ExportKeyword)) continue;
-    if (modifiers.some((m) => m.kind === ts.SyntaxKind.DefaultKeyword)) names.push("default");
-    else if (ts.isVariableStatement(statement)) names.push(...statement.declarationList.declarations.flatMap((d) => bindingNames(d.name)));
+    if (modifiers.some((m) => m.kind === ts.SyntaxKind.DefaultKeyword)) result.names.push("default");
+    else if (ts.isVariableStatement(statement)) result.names.push(...statement.declarationList.declarations.flatMap((d) => bindingNames(d.name)));
     else if (
       (ts.isFunctionDeclaration(statement) ||
         ts.isClassDeclaration(statement) ||
@@ -100,10 +117,24 @@ export function exportedNames(file: string, sources: SourceCache, files: Readonl
         ts.isEnumDeclaration(statement)) &&
       statement.name !== undefined
     ) {
-      names.push(statement.name.text);
+      result.names.push(statement.name.text);
     }
   }
-  return names;
+  return result;
+}
+
+/** Names a module exports, following `export * from "./relative"`. */
+export function exportedNames(file: string, exportsOf: (file: string) => FileExports, files: ReadonlySet<string>, seen = new Set<string>()): string[] {
+  if (seen.has(file)) return [];
+  seen.add(file);
+  const own = exportsOf(file);
+  return [
+    ...own.names,
+    ...own.stars.flatMap((specifier) => {
+      const target = resolveRelative(file, specifier, files);
+      return target === null ? [] : exportedNames(target, exportsOf, files, seen);
+    }),
+  ];
 }
 
 function tsconfigFor(ctx: ExtractorContext, component: ComponentSeed): string | null {
@@ -124,13 +155,35 @@ function isLocalSpecifier(specifier: string, workspacePackages: readonly string[
   );
 }
 
+interface CruiseFacts {
+  edges: Array<{ to: NodeId; evidence: Loc[] }>;
+  failures: string[];
+}
+
+type ParsedTsConfig = ReturnType<typeof extractTSConfig>;
+
+/**
+ * Everything a successful cruise depends on: node_modules is covered by the lockfile, and the tsconfig by its
+ * resolved options (which include whatever its `extends` chain contributed, wherever those files live).
+ */
+function cruiseInputs(ctx: ExtractorContext, component: ComponentSeed, codeFiles: readonly string[], tsconfig: ParsedTsConfig | undefined): string {
+  return JSON.stringify({
+    component: [component.id, component.root],
+    compilerOptions: tsconfig?.options ?? null,
+    code: codeFiles.map((f) => [f, ctx.sha(f)]),
+    // Added, removed, or renamed files anywhere can change what an import resolves to.
+    paths: ctx.files,
+    configs: ctx.files.filter((f) => CONFIG_FILE.test(f)).map((f) => [f, ctx.sha(f)]),
+    layout: ctx.components.map((c) => [c.id, c.root, c.include, c.packageJson?.name ?? null]),
+  });
+}
+
 async function cruiseComponent(
   ctx: ExtractorContext,
   component: ComponentSeed,
   edges: Array<{ component: NodeId; edge: Edge }>,
   failures: ExtractorFailure[],
 ): Promise<void> {
-  const prefix = component.root === "." ? "" : `${component.root}/`;
   const codeFiles = ctx.filesOf(component.id).filter(isCodeFile);
   if (codeFiles.length === 0) return;
 
@@ -143,6 +196,28 @@ async function cruiseComponent(
 
   const tsconfig = tsconfigFor(ctx, component);
   const parsedTsConfig = tsconfig === null ? undefined : extractTSConfig(tsconfig);
+  const facts = await ctx.cache.keyed(
+    ID,
+    VERSION,
+    cruiseInputs(ctx, component, codeFiles, parsedTsConfig),
+    () => cruiseUncached(ctx, component, codeFiles, tsconfig, parsedTsConfig),
+    // A failure can come from a gitignored file the key can't see (an ungenerated Prisma client, an unbuilt
+    // dist/); never cache one, so it clears as soon as the file appears.
+    (result) => result.failures.length === 0,
+  );
+  failures.push(...facts.failures.map((reason) => failure(ID, component.id, reason)));
+  for (const e of facts.edges) edges.push({ component: component.id, edge: { kind: "imports", to: e.to, evidence: e.evidence, provenance: extracted(ID) } });
+}
+
+async function cruiseUncached(
+  ctx: ExtractorContext,
+  component: ComponentSeed,
+  codeFiles: readonly string[],
+  tsconfig: string | null,
+  parsedTsConfig: ParsedTsConfig | undefined,
+): Promise<CruiseFacts> {
+  const prefix = component.root === "." ? "" : `${component.root}/`;
+  const failures: string[] = [];
   const paths = parsedTsConfig?.options.paths ?? {};
   const aliasPrefixes = Object.keys(paths).map((p) => p.replace(/\*$/, ""));
   const workspacePackages = ctx.components.flatMap((c) => (c.packageJson?.name === undefined ? [] : [c.packageJson.name]));
@@ -159,14 +234,8 @@ async function cruiseComponent(
   const output = result.output as ICruiseResult;
 
   const transpilerIssues = (output.summary.environment.issues ?? []).filter((i) => i.name.startsWith("missing-"));
-  if (transpilerIssues.length > 0) {
-    failures.push(failure(ID, component.id, `dependency-cruiser reported ${transpilerIssues.map((i) => i.name).join(", ")}`));
-    return;
-  }
-  if (output.summary.totalCruised === 0) {
-    failures.push(failure(ID, component.id, `dependency-cruiser cruised 0 modules out of ${String(codeFiles.length)} source files`));
-    return;
-  }
+  if (transpilerIssues.length > 0) return { edges: [], failures: [`dependency-cruiser reported ${transpilerIssues.map((i) => i.name).join(", ")}`] };
+  if (output.summary.totalCruised === 0) return { edges: [], failures: [`dependency-cruiser cruised 0 modules out of ${String(codeFiles.length)} source files`] };
 
   const evidenceByTarget = new Map<NodeId, Loc[]>();
   for (const mod of output.modules) {
@@ -178,34 +247,32 @@ async function cruiseComponent(
       if (dep.coreModule) continue;
       if (dep.couldNotResolve) {
         if (isLocalSpecifier(dep.module, workspacePackages, aliasPrefixes)) {
-          failures.push(failure(ID, component.id, `could not resolve "${dep.module}" imported from ${sourceFile}`));
+          failures.push(`could not resolve "${dep.module}" imported from ${sourceFile}`);
         }
         continue;
       }
       const target = path.posix.normalize(prefix + dep.resolved);
       if (target.startsWith("node_modules/") || target.includes("/node_modules/")) continue;
       if (target.startsWith("../")) {
-        failures.push(failure(ID, component.id, `"${dep.module}" imported from ${sourceFile} resolves outside the project`));
+        failures.push(`"${dep.module}" imported from ${sourceFile} resolves outside the project`);
         continue;
       }
       const owner = ctx.componentOf(target);
       if (owner === undefined || owner.id === component.id) continue;
       const locs = importSiteLocs(ctx.sources.get(sourceFile), dep.module);
       if (locs.length === 0) {
-        failures.push(failure(ID, component.id, `found an import of "${dep.module}" in ${sourceFile} but not its line`));
+        failures.push(`found an import of "${dep.module}" in ${sourceFile} but not its line`);
         continue;
       }
       evidenceByTarget.set(owner.id, [...(evidenceByTarget.get(owner.id) ?? []), ...locs]);
     }
   }
-  for (const [to, evidence] of [...evidenceByTarget].sort(([a], [b]) => compareStrings(a, b))) {
-    edges.push({ component: component.id, edge: { kind: "imports", to, evidence, provenance: extracted(ID) } });
-  }
+  return { edges: [...evidenceByTarget].sort(([a], [b]) => compareStrings(a, b)).map(([to, evidence]) => ({ to, evidence })), failures };
 }
 
 export const depcruiseImports: Extractor = {
   id: ID,
-  version: "1",
+  version: VERSION,
   async run(ctx) {
     const edges: Array<{ component: NodeId; edge: Edge }> = [];
     const failures: ExtractorFailure[] = [];
@@ -216,7 +283,10 @@ export const depcruiseImports: Extractor = {
       const entryFile = packageEntryCandidates(component.packageJson)
         .map((entry) => path.posix.normalize(path.posix.join(component.root, entry)))
         .find((file) => fileSet.has(file) && isCodeFile(file));
-      if (entryFile !== undefined) exports.push({ component: component.id, names: exportedNames(entryFile, ctx.sources, fileSet) });
+      if (entryFile !== undefined) {
+        const exportsOf = (file: string): FileExports => ctx.cache.file(ID, VERSION, file, () => fileExports(ctx.sources.get(file)), "exports");
+        exports.push({ component: component.id, names: exportedNames(entryFile, exportsOf, fileSet) });
+      }
     }
     return { edges, failures, exports };
   },

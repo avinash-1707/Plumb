@@ -2,6 +2,7 @@ import { existsSync, readFileSync, realpathSync } from "node:fs";
 import path from "node:path";
 import { checkConfig, type Config, loadConfig } from "../config.ts";
 import { CouldNotCompleteError } from "../errors.ts";
+import { dependencyCruiserVersion } from "../extractors/depcruise-imports.ts";
 import { EXTRACTORS } from "../extractors/index.ts";
 import { SourceCache } from "../extractors/source.ts";
 import type { ComponentSeed, Extractor, ExtractorContext, Facts } from "../extractors/types.ts";
@@ -9,14 +10,22 @@ import { blobShas, headCommit, isGitRepo, listFiles } from "../git.ts";
 import { matchesAny } from "../glob.ts";
 import { assignFiles } from "./assign.ts";
 import { componentFileName } from "./ids.ts";
-import { compareLocs, compareStrings, factsVersion, normalizeMap, provenanceKey, serializeJson } from "./serialize.ts";
+import { type CacheMode, createFactCache } from "./cache.ts";
+import { compareLocs, compareStrings, factsVersions, normalizeMap, provenanceKey, serializeJson } from "./serialize.ts";
 import { checkSummary } from "./summary.ts";
 import type { Component, Edge, EntryPoint, ExtractorFailure, NodeId, RepoMap, Resource, SharedState } from "./types.ts";
+import ts from "typescript";
+import { readVersion } from "../version.ts";
 
 export const MAP_DIR = ".plumb/map";
 
 // Plumb's own output never maps itself: .plumb/map would otherwise list its own files' hashes.
 const ALWAYS_IGNORED = [".plumb/**"];
+
+/** Files the map never covers: Plumb's own output and the config's ignore globs. Impact uses the same rule. */
+export function isIgnored(file: string, config: Config): boolean {
+  return matchesAny(file, [...ALWAYS_IGNORED, ...(config.ignore ?? [])]);
+}
 
 export interface BuildOptions {
   /** Project root (absolute or relative to the process cwd). */
@@ -24,6 +33,11 @@ export interface BuildOptions {
   /** Overrides .plumb/config.json; used by tests and callers that already loaded it. */
   config?: Config;
   extractors?: readonly Extractor[];
+  /**
+   * "read-write" reuses facts for unchanged files (plumb map --update, impact); "write-only" recomputes
+   * everything and refreshes the cache (plumb map); "off" touches no cache (tests' reference rebuilds).
+   */
+  cache?: CacheMode;
 }
 
 export interface BuildResult {
@@ -85,10 +99,17 @@ export async function buildMap(options: BuildOptions): Promise<BuildResult> {
   if (head === null) throw new CouldNotCompleteError("the repository has no commits yet; commit once, then run plumb map");
   const config = options.config === undefined ? loadConfig(root) : checkConfig(options.config, "config");
 
-  const ignore = [...ALWAYS_IGNORED, ...(config.ignore ?? [])];
   const files = listFiles(root)
-    .filter((f) => !matchesAny(f, ignore))
+    .filter((f) => !isIgnored(f, config))
     .sort(compareStrings);
+
+  const shas = blobShas(root, files);
+  const toolchain = `plumb-${readVersion()}_ts-${ts.version}_dc-${dependencyCruiserVersion()}`;
+  const cache = createFactCache(root, options.cache ?? "write-only", toolchain, (file) => {
+    const sha = shas.get(file);
+    if (sha === undefined) throw new Error(`internal: no blob hash for ${file}`);
+    return sha;
+  });
 
   let components: ComponentSeed[] = [];
   let byComponent = new Map<NodeId, string[]>();
@@ -108,6 +129,8 @@ export async function buildMap(options: BuildOptions): Promise<BuildResult> {
     entryPoints: collected.entryPoints,
     resources: collected.resources,
     sources: new SourceCache(root),
+    cache,
+    sha: (file) => shas.get(file) ?? "",
   };
 
   const extractors = options.extractors ?? EXTRACTORS;
@@ -137,11 +160,9 @@ export async function buildMap(options: BuildOptions): Promise<BuildResult> {
     for (const e of facts.exports ?? []) collected.exports.set(e.component, [...(collected.exports.get(e.component) ?? []), ...e.names]);
   }
 
-  const shas = blobShas(root, files);
+  cache.save();
   const resources = mergeResources(collected.resources);
-  const summaryIssues: BuildResult["summaryIssues"] = [];
-  const built: Component[] = components.map((seed) => {
-    const component: Component = {
+  const assembled: Component[] = components.map((seed) => ({
       id: seed.id,
       kind: seed.kind,
       root: seed.root,
@@ -153,10 +174,13 @@ export async function buildMap(options: BuildOptions): Promise<BuildResult> {
       exports: collected.exports.get(seed.id) ?? [],
       edges: mergeEdges(collected.edges.filter((e) => e.component === seed.id)),
       state: [...new Map(collected.state.filter((s) => s.component === seed.id).map((s) => [s.state.id, s.state])).values()],
-      summaryStatus: "missing",
-    };
-    const check = checkSummary(readSummary(root, seed.id), seed.id, factsVersion(component));
-    if (check.issues.length > 0) summaryIssues.push({ component: seed.id, issues: check.issues });
+      summaryStatus: "missing" as const,
+  }));
+  const versions = factsVersions(assembled);
+  const summaryIssues: BuildResult["summaryIssues"] = [];
+  const built: Component[] = assembled.map((component) => {
+    const check = checkSummary(readSummary(root, component.id), component.id, versions.get(component.id) ?? "");
+    if (check.issues.length > 0) summaryIssues.push({ component: component.id, issues: check.issues });
     return { ...component, summaryStatus: check.status };
   });
 

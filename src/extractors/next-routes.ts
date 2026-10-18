@@ -5,6 +5,7 @@ import { locOf } from "./source.ts";
 import { type Extractor, extracted } from "./types.ts";
 
 const ID = "next-routes";
+const VERSION = "1";
 const HTTP_METHODS = new Set(["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]);
 const PAGE_EXTENSIONS = /\.(tsx|ts|jsx|js|mdx)$/;
 
@@ -32,21 +33,24 @@ function bindingNames(name: ts.BindingName): string[] {
  * `export const GET =`, `export const { GET, POST } = handlers`, `export { handler as GET }`, and
  * `export { GET } from "./x"`.
  */
-export function exportedHttpMethods(sf: ts.SourceFile): Array<{ method: string; node: ts.Node }> {
-  const found: Array<{ method: string; node: ts.Node }> = [];
+export function exportedHttpMethods(sf: ts.SourceFile): Array<{ method: string; line: number }> {
+  const found: Array<{ method: string; line: number }> = [];
+  const push = (method: string, node: ts.Node): void => {
+    found.push({ method, line: locOf(sf, node).line });
+  };
   for (const statement of sf.statements) {
     if (ts.isExportDeclaration(statement) && statement.exportClause !== undefined && ts.isNamedExports(statement.exportClause)) {
-      for (const el of statement.exportClause.elements) if (HTTP_METHODS.has(el.name.text)) found.push({ method: el.name.text, node: statement });
+      for (const el of statement.exportClause.elements) if (HTTP_METHODS.has(el.name.text)) push(el.name.text, statement);
       continue;
     }
     const exported = ts.canHaveModifiers(statement) && (ts.getModifiers(statement) ?? []).some((m) => m.kind === ts.SyntaxKind.ExportKeyword);
     if (!exported) continue;
     if (ts.isFunctionDeclaration(statement) && statement.name !== undefined && HTTP_METHODS.has(statement.name.text)) {
-      found.push({ method: statement.name.text, node: statement });
+      push(statement.name.text, statement);
     }
     if (ts.isVariableStatement(statement)) {
       for (const decl of statement.declarationList.declarations) {
-        for (const name of bindingNames(decl.name)) if (HTTP_METHODS.has(name)) found.push({ method: name, node: statement });
+        for (const name of bindingNames(decl.name)) if (HTTP_METHODS.has(name)) push(name, statement);
       }
     }
   }
@@ -55,7 +59,7 @@ export function exportedHttpMethods(sf: ts.SourceFile): Array<{ method: string; 
 
 export const nextRoutes: Extractor = {
   id: ID,
-  version: "1",
+  version: VERSION,
   run(ctx) {
     const entryPoints: Array<{ component: NodeId; entry: EntryPoint }> = [];
     for (const component of ctx.components.filter((c) => c.framework.includes("next"))) {
@@ -73,9 +77,9 @@ export const nextRoutes: Extractor = {
             // File-layout facts point at line 1 of the defining file.
             entryPoints.push({ component: component.id, entry: { id: uiEntryId(route), kind: "ui-route", location: { file, line: 1 }, provenance: extracted(ID) } });
           } else if (/^route\.(ts|js)$/.test(name)) {
-            const sf = ctx.sources.get(file);
-            for (const { method, node } of exportedHttpMethods(sf)) {
-              entryPoints.push({ component: component.id, entry: { id: httpEntryId(method, route), kind: "http", location: locOf(sf, node), provenance: extracted(ID) } });
+            const methods = ctx.cache.file(ID, VERSION, file, () => exportedHttpMethods(ctx.sources.get(file)));
+            for (const { method, line } of methods) {
+              entryPoints.push({ component: component.id, entry: { id: httpEntryId(method, route), kind: "http", location: { file, line }, provenance: extracted(ID) } });
             }
           }
         } else if (pagesDir !== undefined && PAGE_EXTENSIONS.test(rel)) {
