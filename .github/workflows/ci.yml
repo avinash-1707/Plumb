@@ -29,6 +29,8 @@ jobs:
           node-version: ${{ matrix.node }}
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # The golden map test extracts from the example, which needs its own dependencies installed.
+      - run: pnpm --dir examples/node-web install --frozen-lockfile
       - run: pnpm typecheck
       - run: pnpm lint
       - run: pnpm test
