@@ -1,6 +1,9 @@
 import { parseArgs } from "node:util";
 import { impactCommand } from "./commands/impact.ts";
+import { knowledgeCommand } from "./commands/knowledge.ts";
+import { localCommand } from "./commands/local.ts";
 import { mapCommand } from "./commands/map.ts";
+import { profileCommand } from "./commands/profile.ts";
 import { ConfigError } from "./config.ts";
 import { CouldNotCompleteError, UsageError } from "./errors.ts";
 import { ExitCode } from "./exit-codes.ts";
@@ -15,6 +18,9 @@ const USAGE = `Usage: plumb <command> [options]
 Commands:
   map           Build, update, check, show, and query the repo map (plumb map --help)
   impact        Components and features a diff affects (plumb impact --help)
+  knowledge     Prepare and validate explorer findings (plumb knowledge --help)
+  profile       Validate and verify .plumb/profile.json (plumb profile --help)
+  local         Answers to unknowns in .plumb/local.json (plumb local --help)
 
 Options:
   -h, --help     Show this help
@@ -24,6 +30,9 @@ Options:
 const COMMANDS: Record<string, (argv: readonly string[], io: Io) => Promise<ExitCode>> = {
   map: mapCommand,
   impact: impactCommand,
+  knowledge: knowledgeCommand,
+  profile: profileCommand,
+  local: localCommand,
 };
 
 function usageError(io: Io, message: string): ExitCode {
