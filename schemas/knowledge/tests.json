@@ -1,0 +1,228 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "plumb:/schemas/knowledge/tests.json",
+  "title": "Test and check findings (.plumb/knowledge/tests.json)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "agent",
+    "lint",
+    "typecheck",
+    "unit",
+    "integration",
+    "e2e",
+    "harnesses",
+    "ci",
+    "unknowns"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "agent": {
+      "const": "explorer-tests"
+    },
+    "lint": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "command",
+            "evidence"
+          ],
+          "properties": {
+            "command": {
+              "$ref": "../common.json#/$defs/commandRef"
+            },
+            "evidence": {
+              "$ref": "../common.json#/$defs/evidence"
+            }
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "typecheck": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "command",
+            "evidence"
+          ],
+          "properties": {
+            "command": {
+              "$ref": "../common.json#/$defs/commandRef"
+            },
+            "evidence": {
+              "$ref": "../common.json#/$defs/evidence"
+            }
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "unit": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "command",
+            "scoped",
+            "evidence"
+          ],
+          "properties": {
+            "command": {
+              "$ref": "../common.json#/$defs/commandRef"
+            },
+            "scoped": {
+              "oneOf": [
+                {
+                  "type": "string",
+                  "pattern": "\\{files\\}"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "evidence": {
+              "$ref": "../common.json#/$defs/evidence"
+            }
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "integration": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "command",
+            "scoped",
+            "evidence"
+          ],
+          "properties": {
+            "command": {
+              "$ref": "../common.json#/$defs/commandRef"
+            },
+            "scoped": {
+              "oneOf": [
+                {
+                  "type": "string",
+                  "pattern": "\\{files\\}"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "evidence": {
+              "$ref": "../common.json#/$defs/evidence"
+            }
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "e2e": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "command",
+            "evidence"
+          ],
+          "properties": {
+            "command": {
+              "$ref": "../common.json#/$defs/commandRef"
+            },
+            "evidence": {
+              "$ref": "../common.json#/$defs/evidence"
+            }
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "harnesses": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "kind",
+          "config",
+          "evidence"
+        ],
+        "properties": {
+          "kind": {
+            "enum": [
+              "playwright",
+              "cypress",
+              "other"
+            ]
+          },
+          "config": {
+            "type": "string",
+            "minLength": 1
+          },
+          "evidence": {
+            "$ref": "../common.json#/$defs/evidence"
+          }
+        }
+      }
+    },
+    "ci": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "file",
+          "runs",
+          "evidence"
+        ],
+        "properties": {
+          "file": {
+            "type": "string",
+            "minLength": 1
+          },
+          "runs": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "evidence": {
+            "$ref": "../common.json#/$defs/evidence"
+          }
+        }
+      }
+    },
+    "unknowns": {
+      "type": "array",
+      "items": {
+        "$ref": "../common.json#/$defs/knowledgeUnknown"
+      }
+    }
+  }
+}

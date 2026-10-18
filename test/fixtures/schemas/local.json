@@ -1,0 +1,13 @@
+{
+  "env": {
+    "STRIPE_KEY": "sk_test_123"
+  },
+  "services": {
+    "postgres": {
+      "skip": false
+    }
+  },
+  "notes": [
+    "note.staging: use the shared sandbox account"
+  ]
+}

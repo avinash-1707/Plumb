@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "agent": "explorer-risk",
+  "features": [
+    {
+      "id": "place-order",
+      "title": "Place an order",
+      "why": "Writes Order and decrements stock from two components",
+      "rank": 1,
+      "entryPoints": [
+        "entry:http:POST /api/orders"
+      ],
+      "paths": [
+        "apps/api/src/routes/orders.ts"
+      ],
+      "evidence": [
+        {
+          "file": "apps/api/src/routes/orders.ts",
+          "line": 13
+        }
+      ]
+    }
+  ],
+  "riskyResources": [
+    {
+      "id": "resource:db.Order",
+      "why": "Two writers",
+      "evidence": [
+        {
+          "file": "apps/api/src/routes/orders.ts",
+          "line": 41
+        }
+      ]
+    }
+  ],
+  "integrations": [],
+  "unknowns": []
+}

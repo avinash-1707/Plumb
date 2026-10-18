@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "agent": "explorer-frontend",
+  "hasUi": true,
+  "framework": "next",
+  "baseUrl": "http://localhost:3000",
+  "evidence": [
+    {
+      "file": "apps/web/next.config.ts",
+      "line": 1
+    }
+  ],
+  "routes": [
+    {
+      "route": "/",
+      "purpose": "List and search products",
+      "evidence": [
+        {
+          "file": "apps/web/app/page.tsx",
+          "line": 3
+        }
+      ]
+    }
+  ],
+  "stableHandles": [
+    {
+      "kind": "aria",
+      "example": "searchbox \"Search products\"",
+      "evidence": [
+        {
+          "file": "apps/web/components/product-search.tsx",
+          "line": 80
+        }
+      ]
+    }
+  ],
+  "authWall": {
+    "required": false,
+    "signInRoute": "/sign-in",
+    "evidence": [
+      {
+        "file": "apps/web/app/sign-in/page.tsx",
+        "line": 1
+      }
+    ]
+  },
+  "unknowns": []
+}

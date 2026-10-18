@@ -61,6 +61,18 @@ describe("schemas", () => {
     expect(issuesWith("profile", ["install", "cwd"], cwd)).toContain("/install/cwd");
   });
 
+  it("rejects a profile unknown whose id doesn't say where the answer goes", () => {
+    expect(issuesWith("profile", ["unknowns", 0, "id"], "stripe-key")).toContain("/unknowns/0/id");
+  });
+
+  it("rejects a knowledge claim without evidence", () => {
+    expect(issuesWith("knowledge/risk", ["features", 0, "evidence"], [])).toContain("/features/0/evidence");
+  });
+
+  it("rejects knowledge written under another explorer's name", () => {
+    expect(issuesWith("knowledge/tests", ["agent"], "explorer-risk")).toContain("/agent");
+  });
+
   it("rejects a feature tier outside fast-only and deep", () => {
     expect(issuesWith("features", ["features", 0, "tier"], "slow")).toContain("/features/0/tier");
   });

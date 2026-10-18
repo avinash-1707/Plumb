@@ -1,0 +1,135 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "plumb:/schemas/knowledge/frontend.json",
+  "title": "Frontend findings (.plumb/knowledge/frontend.json)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "agent",
+    "hasUi",
+    "framework",
+    "baseUrl",
+    "evidence",
+    "routes",
+    "stableHandles",
+    "authWall",
+    "unknowns"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "agent": {
+      "const": "explorer-frontend"
+    },
+    "hasUi": {
+      "type": "boolean"
+    },
+    "framework": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "baseUrl": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "evidence": {
+      "$ref": "../common.json#/$defs/evidence"
+    },
+    "routes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "route",
+          "purpose",
+          "evidence"
+        ],
+        "properties": {
+          "route": {
+            "type": "string",
+            "minLength": 1
+          },
+          "purpose": {
+            "type": "string",
+            "minLength": 1
+          },
+          "evidence": {
+            "$ref": "../common.json#/$defs/evidence"
+          }
+        }
+      }
+    },
+    "stableHandles": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "kind",
+          "example",
+          "evidence"
+        ],
+        "properties": {
+          "kind": {
+            "enum": [
+              "aria",
+              "testid",
+              "route",
+              "text"
+            ]
+          },
+          "example": {
+            "type": "string",
+            "minLength": 1
+          },
+          "evidence": {
+            "$ref": "../common.json#/$defs/evidence"
+          }
+        }
+      }
+    },
+    "authWall": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "required",
+            "signInRoute",
+            "evidence"
+          ],
+          "properties": {
+            "required": {
+              "type": "boolean"
+            },
+            "signInRoute": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "evidence": {
+              "$ref": "../common.json#/$defs/evidence"
+            }
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "unknowns": {
+      "type": "array",
+      "items": {
+        "$ref": "../common.json#/$defs/knowledgeUnknown"
+      }
+    }
+  }
+}

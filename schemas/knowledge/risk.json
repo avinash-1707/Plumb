@@ -1,0 +1,131 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "plumb:/schemas/knowledge/risk.json",
+  "title": "Risk findings (.plumb/knowledge/risk.json)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "agent",
+    "features",
+    "riskyResources",
+    "integrations",
+    "unknowns"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "agent": {
+      "const": "explorer-risk"
+    },
+    "features": {
+      "description": "Candidate user-facing features for the feature map, most important first.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "title",
+          "why",
+          "rank",
+          "entryPoints",
+          "paths",
+          "evidence"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "../common.json#/$defs/kebabId"
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1
+          },
+          "why": {
+            "type": "string",
+            "minLength": 1
+          },
+          "rank": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "entryPoints": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^entry:.+$"
+            }
+          },
+          "paths": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "evidence": {
+            "$ref": "../common.json#/$defs/evidence"
+          }
+        }
+      }
+    },
+    "riskyResources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "why",
+          "evidence"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "why": {
+            "type": "string",
+            "minLength": 1
+          },
+          "evidence": {
+            "$ref": "../common.json#/$defs/evidence"
+          }
+        }
+      }
+    },
+    "integrations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "kind",
+          "evidence"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "kind": {
+            "type": "string",
+            "minLength": 1
+          },
+          "evidence": {
+            "$ref": "../common.json#/$defs/evidence"
+          }
+        }
+      }
+    },
+    "unknowns": {
+      "type": "array",
+      "items": {
+        "$ref": "../common.json#/$defs/knowledgeUnknown"
+      }
+    }
+  }
+}

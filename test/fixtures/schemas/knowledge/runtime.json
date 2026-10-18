@@ -1,0 +1,102 @@
+{
+  "schemaVersion": 1,
+  "agent": "explorer-runtime",
+  "install": {
+    "command": {
+      "cmd": "pnpm install --frozen-lockfile",
+      "cwd": "."
+    },
+    "evidence": [
+      {
+        "file": "README.md",
+        "line": 11
+      }
+    ],
+    "confidence": "high"
+  },
+  "runTargets": [
+    {
+      "name": "api",
+      "start": {
+        "cmd": "pnpm --filter @node-web/api start",
+        "cwd": "."
+      },
+      "port": 4000,
+      "portEnv": "API_PORT",
+      "ready": {
+        "kind": "http",
+        "url": "http://localhost:4000/health",
+        "expectStatus": 200
+      },
+      "evidence": [
+        {
+          "file": "apps/api/src/server.ts",
+          "line": 4
+        }
+      ],
+      "confidence": "high"
+    }
+  ],
+  "services": [
+    {
+      "name": "postgres",
+      "source": "docker-compose",
+      "start": {
+        "cmd": "docker compose up -d --wait postgres",
+        "cwd": "."
+      },
+      "stop": {
+        "cmd": "docker compose stop postgres",
+        "cwd": "."
+      },
+      "ready": {
+        "kind": "port",
+        "port": 5432
+      },
+      "evidence": [
+        {
+          "file": "docker-compose.yml",
+          "line": 2
+        }
+      ]
+    }
+  ],
+  "env": [
+    {
+      "name": "DATABASE_URL",
+      "required": true,
+      "secret": false,
+      "defaultForVerification": "postgresql://nodeweb:nodeweb@localhost:5432/nodeweb",
+      "source": "env-example",
+      "evidence": [
+        {
+          "file": ".env.example",
+          "line": 2
+        }
+      ]
+    }
+  ],
+  "seed": {
+    "command": {
+      "cmd": "pnpm --filter @node-web/db db:seed",
+      "cwd": "."
+    },
+    "evidence": [
+      {
+        "file": "package.json",
+        "line": 10
+      }
+    ]
+  },
+  "auth": {
+    "required": true,
+    "notes": "Session cookie from POST /api/sessions",
+    "evidence": [
+      {
+        "file": "apps/api/src/auth.ts",
+        "line": 37
+      }
+    ]
+  },
+  "unknowns": []
+}

@@ -11,10 +11,19 @@
     "loc": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["file", "line"],
+      "required": [
+        "file",
+        "line"
+      ],
       "properties": {
-        "file": { "type": "string", "minLength": 1 },
-        "line": { "type": "integer", "minimum": 1 }
+        "file": {
+          "type": "string",
+          "minLength": 1
+        },
+        "line": {
+          "type": "integer",
+          "minimum": 1
+        }
       }
     },
     "provenance": {
@@ -22,24 +31,103 @@
         {
           "type": "object",
           "additionalProperties": false,
-          "required": ["source", "extractor"],
+          "required": [
+            "source",
+            "extractor"
+          ],
           "properties": {
-            "source": { "const": "extracted" },
-            "extractor": { "type": "string", "minLength": 1 }
+            "source": {
+              "const": "extracted"
+            },
+            "extractor": {
+              "type": "string",
+              "minLength": 1
+            }
           }
         },
         {
           "type": "object",
           "additionalProperties": false,
-          "required": ["source", "confidence"],
+          "required": [
+            "source",
+            "confidence"
+          ],
           "properties": {
-            "source": { "const": "inferred" },
-            "confidence": { "enum": ["high", "low"] }
+            "source": {
+              "const": "inferred"
+            },
+            "confidence": {
+              "enum": [
+                "high",
+                "low"
+              ]
+            }
           }
         }
       ]
     },
-    "strategy": { "enum": ["library-cli", "api-backend", "web-app", "monorepo"] },
-    "kebabId": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" }
+    "strategy": {
+      "enum": [
+        "library-cli",
+        "api-backend",
+        "web-app",
+        "monorepo"
+      ]
+    },
+    "kebabId": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+    },
+    "evidence": {
+      "description": "Where the claim was learned; every claim needs at least one location.",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/loc"
+      }
+    },
+    "confidence": {
+      "description": "\"low\" marks a probable but unconfirmed claim.",
+      "enum": [
+        "high",
+        "low"
+      ]
+    },
+    "commandRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "cmd",
+        "cwd"
+      ],
+      "properties": {
+        "cmd": {
+          "type": "string",
+          "minLength": 1
+        },
+        "cwd": {
+          "type": "string"
+        }
+      }
+    },
+    "knowledgeUnknown": {
+      "description": "Something that cannot be observed in the repo.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "question",
+        "why"
+      ],
+      "properties": {
+        "question": {
+          "type": "string",
+          "minLength": 1
+        },
+        "why": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
   }
 }

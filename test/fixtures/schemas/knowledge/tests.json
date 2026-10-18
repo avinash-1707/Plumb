@@ -1,0 +1,62 @@
+{
+  "schemaVersion": 1,
+  "agent": "explorer-tests",
+  "lint": null,
+  "typecheck": {
+    "command": {
+      "cmd": "pnpm typecheck",
+      "cwd": "."
+    },
+    "evidence": [
+      {
+        "file": "package.json",
+        "line": 12
+      }
+    ]
+  },
+  "unit": {
+    "command": {
+      "cmd": "pnpm test",
+      "cwd": "."
+    },
+    "scoped": null,
+    "evidence": [
+      {
+        "file": "package.json",
+        "line": 13
+      }
+    ]
+  },
+  "integration": null,
+  "e2e": {
+    "command": {
+      "cmd": "pnpm e2e",
+      "cwd": "."
+    },
+    "evidence": [
+      {
+        "file": "package.json",
+        "line": 14
+      }
+    ]
+  },
+  "harnesses": [
+    {
+      "kind": "playwright",
+      "config": "apps/web/playwright.config.ts",
+      "evidence": [
+        {
+          "file": "apps/web/playwright.config.ts",
+          "line": 7
+        }
+      ]
+    }
+  ],
+  "ci": [],
+  "unknowns": [
+    {
+      "question": "Does CI run the Playwright spec?",
+      "why": "No CI config in the repo"
+    }
+  ]
+}

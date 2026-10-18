@@ -4,7 +4,20 @@ import { Ajv2020, type ErrorObject, type ValidateFunction } from "ajv/dist/2020.
 // Schemas ship with the package at <root>/schemas; this file sits at src/schema or dist/schema.
 const SCHEMA_DIR = new URL("../../schemas/", import.meta.url);
 
-export const SCHEMA_NAMES = ["map/manifest", "map/component", "map/resources", "profile", "features", "config"] as const;
+export const SCHEMA_NAMES = [
+  "map/manifest",
+  "map/component",
+  "map/resources",
+  "profile",
+  "features",
+  "config",
+  "local",
+  "knowledge/structure",
+  "knowledge/runtime",
+  "knowledge/tests",
+  "knowledge/frontend",
+  "knowledge/risk",
+] as const;
 export type SchemaName = (typeof SCHEMA_NAMES)[number];
 
 // Referenced by other schemas, never validated against directly.

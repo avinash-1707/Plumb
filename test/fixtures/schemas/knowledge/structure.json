@@ -1,0 +1,57 @@
+{
+  "schemaVersion": 1,
+  "agent": "explorer-structure",
+  "languages": [
+    {
+      "name": "typescript",
+      "evidence": [
+        {
+          "file": "tsconfig.base.json",
+          "line": 1
+        }
+      ]
+    }
+  ],
+  "buildSystem": {
+    "tool": "pnpm workspaces",
+    "evidence": [
+      {
+        "file": "pnpm-workspace.yaml",
+        "line": 1
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "component:web",
+      "role": "Next.js storefront",
+      "build": {
+        "cmd": "pnpm --filter @node-web/web build",
+        "cwd": "."
+      },
+      "test": {
+        "cmd": "pnpm --filter @node-web/web test",
+        "cwd": "."
+      },
+      "evidence": [
+        {
+          "file": "apps/web/package.json",
+          "line": 6
+        }
+      ]
+    }
+  ],
+  "splitProposals": [],
+  "generatedPaths": [
+    {
+      "glob": "packages/db/src/generated/**",
+      "evidence": [
+        {
+          "file": "packages/db/prisma/schema.prisma",
+          "line": 3
+        }
+      ]
+    }
+  ],
+  "unknowns": []
+}

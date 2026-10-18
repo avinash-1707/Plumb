@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "plumb:/schemas/local.json",
+  "title": "Plumb local config (.plumb/local.json, never committed)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "env",
+    "services",
+    "notes"
+  ],
+  "properties": {
+    "env": {
+      "description": "Injected into commands Plumb runs for verification only.",
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+      },
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "services": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "skip": {
+            "type": "boolean"
+          },
+          "start": {
+            "type": "string",
+            "minLength": 1
+          },
+          "stop": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "notes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}
