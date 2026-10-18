@@ -9,7 +9,8 @@
   },
   "files": [
     "dist",
-    "schemas"
+    "schemas",
+    "templates"
   ],
   "engines": {
     "node": ">=22.20.0"
@@ -23,13 +24,15 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "ajv": "^8.20.0"
+    "ajv": "^8.20.0",
+    "dependency-cruiser": "^18.6.0",
+    "typescript": "~6.0.3",
+    "yaml": "^2.9.1"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@types/node": "^22.20.5",
     "eslint": "^10.13.0",
-    "typescript": "~6.0.3",
     "typescript-eslint": "^8.71.2",
     "vitest": "^5.0.5"
   }

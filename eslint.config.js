@@ -13,6 +13,12 @@ export default defineConfig(
     },
   },
   {
+    rules: {
+      // `const { omitted, ...rest } = obj` is how a field is dropped without mutation.
+      "@typescript-eslint/no-unused-vars": ["error", { ignoreRestSiblings: true }],
+    },
+  },
+  {
     files: ["**/*.js"],
     extends: [tseslint.configs.disableTypeChecked],
   },
