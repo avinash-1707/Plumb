@@ -26,7 +26,7 @@ Run the CLI from source with `node src/cli.ts <command>` (Node strips the types)
 
 - `test/` holds unit and integration tests (Vitest). Tests that start processes must leave nothing running; they create throwaway git repositories under the OS temp dir.
 - `examples/node-web` is the integration target. Its golden map in `examples/node-web/.plumb-golden/map/` is the extractors' reliability check: an extractor change must keep `test/map-golden.test.ts` passing, or update the golden files deliberately after reviewing the diff line by line.
-- `scripts/e2e-init.sh` runs the full `/plumb-init` headlessly against a fresh copy of the example and checks the result. It needs Claude Code (logged in, or with `CLAUDE_CODE_OAUTH_TOKEN` or `ANTHROPIC_API_KEY` set) and Docker, and uses a few dollars of model usage per run. CI runs it on pull requests when the repository has a `CLAUDE_CODE_OAUTH_TOKEN` secret (from `claude setup-token`, using a Claude subscription) or an `ANTHROPIC_API_KEY` secret.
+- `scripts/e2e-init.sh` runs the full `/plumb-init` headlessly against a fresh copy of the example and checks the result: skill valid, evidence kept, nothing left running, and a second init changes nothing. It needs a logged-in Claude Code and Docker, and uses a few dollars of model usage, so run it by hand before a release, not on every change.
 
 ## Commits
 
