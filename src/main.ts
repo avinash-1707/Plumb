@@ -1,5 +1,6 @@
 import { parseArgs } from "node:util";
 import { gateCommand } from "./commands/gate.ts";
+import { hookCommand, hooksCommand } from "./commands/hooks.ts";
 import { impactCommand } from "./commands/impact.ts";
 import { knowledgeCommand } from "./commands/knowledge.ts";
 import { localCommand } from "./commands/local.ts";
@@ -25,6 +26,8 @@ Commands:
   profile       Validate and verify .plumb/profile.json (plumb profile --help)
   local         Answers to unknowns in .plumb/local.json (plumb local --help)
   gate          Run, dry-run, or regenerate the fast-tier gate (plumb gate --help)
+  hooks         Install or uninstall the git pre-commit gate (plumb hooks --help)
+  hook          Hook entry points for agents (plumb hook claude-pre-commit)
   verify        Verify skill: scaffold, validate, launch, doctor, cleanup, plan, stamp (plumb verify --help)
 
 Options:
@@ -40,6 +43,8 @@ const COMMANDS: Record<string, (argv: readonly string[], io: Io) => Promise<Exit
   local: localCommand,
   verify: verifyCommand,
   gate: gateCommand,
+  hooks: hooksCommand,
+  hook: (argv, io) => hookCommand(argv, io),
 };
 
 function usageError(io: Io, message: string): ExitCode {
