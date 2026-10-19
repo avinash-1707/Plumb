@@ -4,11 +4,13 @@ import { knowledgeCommand } from "./commands/knowledge.ts";
 import { localCommand } from "./commands/local.ts";
 import { mapCommand } from "./commands/map.ts";
 import { profileCommand } from "./commands/profile.ts";
+import { verifyCommand } from "./commands/verify.ts";
 import { ConfigError } from "./config.ts";
 import { CouldNotCompleteError, UsageError } from "./errors.ts";
 import { ExitCode } from "./exit-codes.ts";
 import { GitError } from "./git.ts";
 import type { Io } from "./io.ts";
+import { ManagedRegionError } from "./managed/regions.ts";
 import { readVersion } from "./version.ts";
 
 export type { Io } from "./io.ts";
@@ -21,6 +23,7 @@ Commands:
   knowledge     Prepare and validate explorer findings (plumb knowledge --help)
   profile       Validate and verify .plumb/profile.json (plumb profile --help)
   local         Answers to unknowns in .plumb/local.json (plumb local --help)
+  verify        Verify skill: scaffold, validate, launch, doctor, cleanup, plan, stamp (plumb verify --help)
 
 Options:
   -h, --help     Show this help
@@ -33,6 +36,7 @@ const COMMANDS: Record<string, (argv: readonly string[], io: Io) => Promise<Exit
   knowledge: knowledgeCommand,
   profile: profileCommand,
   local: localCommand,
+  verify: verifyCommand,
 };
 
 function usageError(io: Io, message: string): ExitCode {
@@ -61,7 +65,7 @@ export async function run(argv: readonly string[], io: Io): Promise<ExitCode> {
         io.stderr(`plumb ${command ?? ""}: ${err.message}\n`);
         return ExitCode.InvalidUsage;
       }
-      if (err instanceof CouldNotCompleteError || err instanceof ConfigError || err instanceof GitError) {
+      if (err instanceof CouldNotCompleteError || err instanceof ConfigError || err instanceof GitError || err instanceof ManagedRegionError) {
         io.stderr(`plumb ${command ?? ""}: ${err.message}\n`);
         return ExitCode.CouldNotComplete;
       }
