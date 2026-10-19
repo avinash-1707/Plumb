@@ -2,19 +2,8 @@ import { randomBytes } from "node:crypto";
 import path from "node:path";
 import { ensureGitignore } from "../managed/block.ts";
 import { type Outcome, portOpen, probeNow, runToCompletion, StartedProcess, waitReady } from "./runner.ts";
+import { type StartedService, type StepResult, startService, stopServices } from "./services.ts";
 import type { Command, LocalConfig, Profile } from "./types.ts";
-
-export interface StepResult {
-  step: string;
-  command: string | null;
-  cwd: string | null;
-  status: "passed" | "failed" | "skipped";
-  /** Why it failed or was skipped. */
-  detail?: string;
-  log?: string;
-  tail?: string[];
-  durationMs?: number;
-}
 
 export interface VerifyResult {
   ok: boolean;
@@ -23,13 +12,14 @@ export interface VerifyResult {
   teardown: string[];
 }
 
-function runId(): string {
+export type { StepResult } from "./services.ts";
+
+/** Sortable and unique enough for evidence directory names. */
+export function runId(): string {
   const now = new Date();
   const pad = (n: number): string => String(n).padStart(2, "0");
   return `${String(now.getFullYear())}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}-${randomBytes(2).toString("hex")}`;
 }
-
-const FROM_LOCAL = "<command from .plumb/local.json>";
 
 /** Replaces every local.json value in text: secrets never reach the report, the transcript, or stdout. */
 export function redactor(local: LocalConfig): (text: string) => string {
@@ -61,7 +51,7 @@ export async function verifyProfile(root: string, profile: Profile, local: Local
   // Every process this run started, including a step still in progress, so Ctrl-C can stop all of them.
   const started: StartedProcess[] = [];
   const running: StartedProcess[] = [];
-  const startedServices: Array<{ name: string; stop: Command | null }> = [];
+  const startedServices: StartedService[] = [];
   const track = {
     onStart: (proc: StartedProcess): void => {
       started.push(proc);
@@ -100,14 +90,7 @@ export async function verifyProfile(root: string, profile: Profile, local: Local
     }
     // Steps interrupted mid-run (Ctrl-C); finished ones were already swept or are services stopped below.
     for (const proc of started.splice(0).reverse()) if (proc.exit === null) await proc.stop();
-    for (const service of startedServices.splice(0).reverse()) {
-      if (service.stop === null) {
-        teardown.push(`left ${service.name} running: the profile has no stop command for it`);
-        continue;
-      }
-      const outcome = await runToCompletion(`stop-${service.name}`, service.stop.cmd, path.resolve(root, service.stop.cwd), env, service.stop.timeoutSec, logFor(`stop-${service.name}`).abs, { sweep: true });
-      teardown.push(outcome.ok ? `stopped ${service.name}` : `could not stop ${service.name}: ${redact(outcome.reason ?? "failed")} (see ${logFor(`stop-${service.name}`).rel})`);
-    }
+    teardown.push(...(await stopServices(root, startedServices.splice(0), env, logFor, redact)));
   };
   const onSignal = (signal: NodeJS.Signals): void => {
     void stopAll().finally(() => process.exit(signal === "SIGINT" ? 130 : 143));
@@ -123,40 +106,12 @@ export async function verifyProfile(root: string, profile: Profile, local: Local
 
     for (const service of profile.services) {
       const step = `service-${service.name}`;
-      const override = local.services[service.name];
-      if (override?.skip === true) {
-        steps.push({ step, command: null, cwd: null, status: "skipped", detail: "skipped in .plumb/local.json" });
-        continue;
-      }
-      // A local.json answer replaces the profile's command, or supplies one the profile couldn't know.
-      const withOverride = (base: Command | null, cmd: string | undefined, timeoutSec: number): Command | null =>
-        cmd === undefined ? base : { cmd, cwd: base?.cwd ?? ".", timeoutSec: base?.timeoutSec ?? timeoutSec };
-      const start = withOverride(service.start, override?.start, 180);
-      const stop = withOverride(service.stop, override?.stop, 60);
-      const shownStart = start === null ? null : override?.start !== undefined ? FROM_LOCAL : redact(start.cmd);
-      if (service.ready !== null && (await probeNow(service.ready))) {
-        // Something is already serving it; use it, but it isn't Plumb's to stop.
-        steps.push({ step, command: shownStart, cwd: start?.cwd ?? null, status: "passed", detail: "already running; not started or stopped by Plumb" });
-        continue;
-      }
-      if (start === null) {
-        steps.push({ step, command: null, cwd: null, status: "failed", detail: "not running, and the profile has no start command" });
-        return { ok: false, evidenceDir: evidenceRel, steps, teardown };
-      }
-      // Registered before it starts, so a start that fails halfway (a healthcheck timeout) is still stopped. Without
-      // a readiness probe Plumb can't tell it wasn't already running, so it never stops it; validate requires a
-      // probe on any service with a stop command.
-      if (service.ready !== null) startedServices.push({ name: service.name, stop });
-      const outcome = await runToCompletion(step, start.cmd, path.resolve(root, start.cwd), env, start.timeoutSec, logFor(step).abs, track);
-      if (!record(step, start, outcome, shownStart === null ? {} : { command: shownStart })) return { ok: false, evidenceDir: evidenceRel, steps, teardown };
-      if (service.ready !== null) {
-        const ready = await waitReady(service.ready, null, start.timeoutSec);
-        if (!ready.ok) {
-          const last = steps.at(-1);
-          if (last !== undefined) Object.assign(last, { status: "failed", detail: ready.reason ?? "never became ready" });
-          return { ok: false, evidenceDir: evidenceRel, steps, teardown };
-        }
-      }
+      const result = await startService(root, service, local, env, logFor(step), redact, {
+        onStart: track.onStart,
+        onRegister: (s) => startedServices.push(s),
+      });
+      steps.push(result);
+      if (result.status === "failed") return { ok: false, evidenceDir: evidenceRel, steps, teardown };
     }
 
     if (options.bootOnly !== true) {

@@ -12,9 +12,15 @@ function hideLeadingDots(p: string): string {
     .join("/");
 }
 
-/** Glob match where wildcards also match dotfiles and dot-directories. */
+// Brackets are literal in Plumb globs: route folders like `app/orders/[id]/` and `[...slug]` (Next.js, SvelteKit,
+// Nuxt) are far more common in feature paths than character classes. "[" becomes the one-character class "[[]".
+function literalBrackets(pattern: string): string {
+  return pattern.replaceAll("[", "\uE001").replaceAll("\uE001", "[[]");
+}
+
+/** Glob match where wildcards also match dotfiles and dot-directories, and brackets are literal. */
 export function matchGlob(file: string, pattern: string): boolean {
-  return path.matchesGlob(hideLeadingDots(file), hideLeadingDots(pattern));
+  return path.matchesGlob(hideLeadingDots(file), literalBrackets(hideLeadingDots(pattern)));
 }
 
 export function matchesAny(file: string, patterns: readonly string[]): boolean {

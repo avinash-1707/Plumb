@@ -62,3 +62,13 @@ export function blobShas(root: string, files: readonly string[]): Map<string, st
   if (shas.length !== files.length) throw new GitError(`git hash-object returned ${String(shas.length)} hashes for ${String(files.length)} files`);
   return new Map(files.map((file, i) => [file, shas[i] ?? ""]));
 }
+
+/** Hash of the staged tree (`git write-tree`): the key for gate and verification stamps. */
+export function writeTree(root: string): string {
+  return git(root, ["write-tree"]).trim();
+}
+
+/** HEAD's tree: what a branch's pull request contains. */
+export function headTree(root: string): string {
+  return git(root, ["rev-parse", "HEAD^{tree}"]).trim();
+}

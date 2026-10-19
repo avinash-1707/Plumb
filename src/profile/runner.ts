@@ -1,5 +1,5 @@
-import { type ChildProcess, spawn } from "node:child_process";
-import { createWriteStream, mkdirSync, type WriteStream } from "node:fs";
+import { type ChildProcess, spawn, spawnSync } from "node:child_process";
+import { closeSync, createWriteStream, mkdirSync, openSync, readFileSync, writeSync, type WriteStream } from "node:fs";
 import net from "node:net";
 import path from "node:path";
 import type { ReadinessProbe } from "./types.ts";
@@ -222,4 +222,132 @@ export async function waitReady(probe: ReadinessProbe, proc: StartedProcess | nu
     }
     await new Promise((resolve) => setTimeout(resolve, 300));
   }
+}
+
+/**
+ * Starts a command in its own session and process group that outlives this CLI process: `plumb verify --launch`
+ * returns while the app keeps running, and `--cleanup` later kills the group by the recorded id. Output goes straight
+ * to the log file because no process stays behind to read a pipe.
+ */
+export async function spawnDetached(cmd: string, cwd: string, env: NodeJS.ProcessEnv, logFile: string): Promise<number> {
+  mkdirSync(path.dirname(logFile), { recursive: true });
+  const fd = openSync(logFile, "a");
+  try {
+    writeSync(fd, `$ ${cmd}\n# cwd: ${cwd}\n`);
+    const child = spawn("sh", ["-c", cmd], { cwd, env, detached: true, stdio: ["ignore", fd, fd] });
+    const pid = await new Promise<number>((resolve, reject) => {
+      child.once("spawn", () => {
+        if (child.pid === undefined) reject(new Error(`could not start: ${cmd}`));
+        else resolve(child.pid);
+      });
+      child.once("error", reject);
+    });
+    child.unref();
+    return pid;
+  } finally {
+    closeSync(fd);
+  }
+}
+
+/**
+ * Whether any process in the group is still running. EPERM is macOS's answer for a group that only holds zombies of a
+ * dead leader, which is as good as gone (the processes are this user's, so it is never a permission problem).
+ */
+export function groupAlive(pgid: number): boolean {
+  try {
+    process.kill(-pgid, 0);
+    return true;
+  } catch (err) {
+    const code = err instanceof Error && "code" in err ? err.code : undefined;
+    if (code === "ESRCH" || code === "EPERM") return false;
+    throw err;
+  }
+}
+
+/** When a process started, as `ps` prints it; null when no such process exists. */
+export function processStart(pid: number): string | null {
+  const ps = spawnSync("ps", ["-o", "lstart=", "-p", String(pid)], { encoding: "utf8" });
+  if (ps.error !== undefined) throw ps.error;
+  const out = ps.stdout.trim();
+  return ps.status === 0 && out !== "" ? out : null;
+}
+
+/**
+ * Whether a recorded process group is still the one Plumb started. A pid is never reused while its process group
+ * exists, so a live leader with a different start time means the group died and the id now belongs to someone else.
+ * A gone leader with members left is still Plumb's group.
+ */
+export function sameGroup(pgid: number, leaderStart: string | null): boolean {
+  if (leaderStart === null) return true;
+  const now = processStart(pgid);
+  return now === null || now === leaderStart;
+}
+
+/**
+ * SIGTERM to a recorded process group, then SIGKILL after the grace period. Returns whether the group is gone; a
+ * group whose id now belongs to another process (see sameGroup) is never signalled and counts as gone.
+ */
+export async function stopGroup(pgid: number, leaderStart: string | null = null): Promise<boolean> {
+  const signal = (sig: NodeJS.Signals): void => {
+    try {
+      process.kill(-pgid, sig);
+    } catch (err) {
+      const code = err instanceof Error && "code" in err ? err.code : undefined;
+      if (code !== "ESRCH" && code !== "EPERM") throw err;
+    }
+  };
+  if (!groupAlive(pgid) || !sameGroup(pgid, leaderStart)) return true;
+  signal("SIGTERM");
+  const deadline = Date.now() + KILL_GRACE_MS;
+  while (groupAlive(pgid) && Date.now() < deadline) await new Promise((resolve) => setTimeout(resolve, 100));
+  if (groupAlive(pgid)) signal("SIGKILL");
+  for (let i = 0; i < 20 && groupAlive(pgid); i++) await new Promise((resolve) => setTimeout(resolve, 100));
+  return !groupAlive(pgid);
+}
+
+/** The last lines of a log file, for failure reports. */
+export function logTail(logFile: string, lines = TAIL_LINES): string[] {
+  let text: string;
+  try {
+    text = readFileSync(logFile, "utf8");
+  } catch (err) {
+    if (err instanceof Error && "code" in err && err.code === "ENOENT") return [];
+    throw err;
+  }
+  return text.split("\n").filter((l, i, all) => l !== "" || i < all.length - 1).slice(-lines);
+}
+
+/** Waits until the probe passes for a detached group, the group dies, or the timeout runs out. */
+export async function waitReadyDetached(probe: ReadinessProbe, pgid: number, logFile: string, timeoutSec: number): Promise<{ ok: boolean; reason?: string }> {
+  const deadline = Date.now() + timeoutSec * 1000;
+  const pattern = probe.kind === "log" ? new RegExp(probe.pattern) : null;
+  for (;;) {
+    const ready = pattern === null ? await probeNow(probe) : logTail(logFile, Number.MAX_SAFE_INTEGER).some((l) => pattern.test(l));
+    if (ready) return { ok: true };
+    if (!groupAlive(pgid)) return { ok: false, reason: "exited before it was ready" };
+    if (Date.now() >= deadline) {
+      const what = probe.kind === "http" ? `${probe.url} never returned ${String(probe.expectStatus)}` : probe.kind === "port" ? `port ${String(probe.port)} never opened` : `log never matched /${probe.pattern}/`;
+      return { ok: false, reason: `${what} within ${String(timeoutSec)}s` };
+    }
+    await new Promise((resolve) => setTimeout(resolve, 300));
+  }
+}
+
+/** A port nothing listens on over IPv4 or IPv6 loopback right now. */
+export async function freePort(): Promise<number> {
+  for (let attempt = 0; attempt < 10; attempt++) {
+    const port = await new Promise<number>((resolve, reject) => {
+      const server = net.createServer();
+      server.once("error", reject);
+      server.listen(0, "127.0.0.1", () => {
+        const address = server.address();
+        server.close(() => {
+          if (address !== null && typeof address === "object") resolve(address.port);
+          else reject(new Error("no port assigned"));
+        });
+      });
+    });
+    if (!(await portOpen(port))) return port;
+  }
+  throw new Error("could not find a free port");
 }
