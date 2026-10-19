@@ -6,8 +6,9 @@ import type { Io } from "../io.ts";
 import { buildMap, MAP_DIR, renderMap } from "../map/build.ts";
 import { componentFileName } from "../map/ids.ts";
 import { MapIndex, type EdgeRef, type MapNode } from "../map/query.ts";
+import { staleMapFiles } from "../map/freshness.ts";
 import { factsVersions } from "../map/serialize.ts";
-import { loadMap, readMapFiles, writeMap, writeOne } from "../map/store.ts";
+import { loadMap, writeMap, writeOne } from "../map/store.ts";
 import type { Loc, Provenance, RepoMap } from "../map/types.ts";
 
 export const MAP_USAGE = `Usage:
@@ -94,10 +95,6 @@ async function build(root: string, update: boolean, asJson: boolean, io: Io): Pr
 }
 
 /** builtAtCommit names the commit the map was built at, so a committed map can never contain its own commit. */
-function withoutHead(manifest: string): string {
-  return manifest.replace(/"builtAtCommit": "[0-9a-f]+"/, '"builtAtCommit": ""');
-}
-
 async function check(root: string, asJson: boolean, io: Io): Promise<ExitCode> {
   const { map } = await buildMap({ root, cache: "read-write" });
   // A map missing facts can't say whether the committed one is stale: that's a blocker, not a verdict.
@@ -105,12 +102,7 @@ async function check(root: string, asJson: boolean, io: Io): Promise<ExitCode> {
     io.stderr("plumb map: can't check freshness while extractors fail\n");
     return ExitCode.CouldNotComplete;
   }
-  const expected = renderMap(map);
-  const actual = readMapFiles(root);
-  const normalize = (rel: string, content: string | undefined): string | undefined => (rel === "manifest.json" && content !== undefined ? withoutHead(content) : content);
-  const stale = [...new Set([...expected.keys(), ...actual.keys()])]
-    .filter((rel) => normalize(rel, expected.get(rel)) !== normalize(rel, actual.get(rel)))
-    .sort();
+  const stale = staleMapFiles(root, map);
   if (asJson) json(io, { upToDate: stale.length === 0, stale });
   else if (stale.length === 0) io.stdout(`map is up to date\n`);
   else io.stdout(`map is stale; run plumb map --update and commit ${MAP_DIR}\n${stale.map((rel) => `  ${MAP_DIR}/${rel}`).join("\n")}\n`);

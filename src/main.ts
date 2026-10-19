@@ -2,9 +2,11 @@ import { parseArgs } from "node:util";
 import { gateCommand } from "./commands/gate.ts";
 import { hookCommand, hooksCommand } from "./commands/hooks.ts";
 import { impactCommand } from "./commands/impact.ts";
+import { doctorCommand, initCommand, statusCommand } from "./commands/init.ts";
 import { knowledgeCommand } from "./commands/knowledge.ts";
 import { localCommand } from "./commands/local.ts";
 import { mapCommand } from "./commands/map.ts";
+import { prCommand } from "./commands/pr.ts";
 import { profileCommand } from "./commands/profile.ts";
 import { verifyCommand } from "./commands/verify.ts";
 import { ConfigError } from "./config.ts";
@@ -20,11 +22,15 @@ export type { Io } from "./io.ts";
 const USAGE = `Usage: plumb <command> [options]
 
 Commands:
+  init          Deterministic setup, or --refresh managed sections (plumb init --help)
+  status        What Plumb has set up and what it last proved
+  doctor        Check Plumb's own setup
   map           Build, update, check, show, and query the repo map (plumb map --help)
   impact        Components and features a diff affects (plumb impact --help)
   knowledge     Prepare and validate explorer findings (plumb knowledge --help)
   profile       Validate and verify .plumb/profile.json (plumb profile --help)
   local         Answers to unknowns in .plumb/local.json (plumb local --help)
+  pr            Verification plan and report for a branch (plumb pr --help)
   gate          Run, dry-run, or regenerate the fast-tier gate (plumb gate --help)
   hooks         Install or uninstall the git pre-commit gate (plumb hooks --help)
   hook          Hook entry points for agents (plumb hook claude-pre-commit)
@@ -36,6 +42,9 @@ Options:
 `;
 
 const COMMANDS: Record<string, (argv: readonly string[], io: Io) => Promise<ExitCode>> = {
+  init: initCommand,
+  status: statusCommand,
+  doctor: doctorCommand,
   map: mapCommand,
   impact: impactCommand,
   knowledge: knowledgeCommand,
@@ -43,6 +52,7 @@ const COMMANDS: Record<string, (argv: readonly string[], io: Io) => Promise<Exit
   local: localCommand,
   verify: verifyCommand,
   gate: gateCommand,
+  pr: prCommand,
   hooks: hooksCommand,
   hook: (argv, io) => hookCommand(argv, io),
 };

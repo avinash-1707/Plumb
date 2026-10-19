@@ -19,8 +19,9 @@ import { readVersion } from "../version.ts";
 
 export const MAP_DIR = ".plumb/map";
 
-// Plumb's own output never maps itself: .plumb/map would otherwise list its own files' hashes.
-const ALWAYS_IGNORED = [".plumb/**"];
+// Plumb's own output never maps itself: .plumb/map would otherwise list its own files' hashes, and every refine of
+// the generated verify skill would make the committed map stale.
+const ALWAYS_IGNORED = [".plumb/**", ".claude/skills/verify-*/**"];
 
 /** Files the map never covers: Plumb's own output and the config's ignore globs. Impact uses the same rule. */
 export function isIgnored(file: string, config: Config): boolean {
