@@ -1,3 +1,5 @@
+<p align="center"><img src="assets/banner.jpg" alt="Plumb: prove every change in the running app" width="100%"></p>
+
 # Plumb
 
 Plumb maps your codebase, proves changes work in the running app, and checks every commit before it lands.
