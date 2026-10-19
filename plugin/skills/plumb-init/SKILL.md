@@ -27,6 +27,8 @@ Then decide where to pick up:
 - `plumb status` shows `proven` as never: an earlier init stopped before its self-proof finished. Continue from step 9.
 - Otherwise Plumb is set up: report that (include the refresh output) and stop. `/plumb-refine` is the flow for updating the skill's content.
 
+If `.plumb/profile.json` exists but `.plumb/features.json` doesn't, an earlier run stopped after writing the profile (usually waiting for answers to unknowns). Run `plumb map`, then `plumb profile validate`; if it passes, continue from step 6, otherwise from step 5.
+
 ## 1. Map the repository
 
 Run `plumb map`. If it exits 2, read the failures. "dependencies not installed" means the checkout has no `node_modules`: stop and tell the user the install command the repo documents. Plumb doesn't install for you before it knows the project.

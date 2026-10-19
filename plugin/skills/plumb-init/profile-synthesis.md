@@ -23,6 +23,7 @@ Every command is `{ "cmd", "cwd", "timeoutSec" }`; `cwd` is repo-relative (`.` f
 
 - Use the exact commands the knowledge cites; don't rephrase them.
 - A command must never create or overwrite the user's files. Leave out setup steps like `cp .env.example .env`, even when the README documents them: Plumb injects each env var's `defaultForVerification` into every command it runs, so the app gets safe local values without touching `.env`.
+- `install` must respect the lockfile, so verification never rewrites a tracked file: `npm ci`, `pnpm install --frozen-lockfile`, `yarn install --immutable` (Yarn 2+) or `yarn install --frozen-lockfile` (Yarn 1), `bun install --frozen-lockfile`. Use the plain install only when the repo has no lockfile. If an env default such as `NODE_ENV=production` would make the install skip dev dependencies the checks need, add the package manager's flag to include them (`npm ci --include=dev`).
 - Prefer one repo-level command over a chain when the repo has one.
 - Timeouts: install 600, build 600, lint/typecheck 300, unit 600, integration 900, e2e 900, a service start 180, a run target start 120. Raise one only with a reason from the knowledge.
 

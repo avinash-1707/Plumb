@@ -32,6 +32,23 @@ export function profileCommands(profile: Profile): Array<{ path: string; command
   return out;
 }
 
+// An install that may rewrite the lockfile, keyed by the lockfile that makes it a problem.
+const LOCKFILE_INSTALLS: Array<{ lockfile: string; loose: RegExp; fix: string }> = [
+  { lockfile: "package-lock.json", loose: /^npm (install|i)\b(?!.*--(package-lock-only))/, fix: "npm ci" },
+  { lockfile: "pnpm-lock.yaml", loose: /^pnpm (install|i)\b(?!.*--frozen-lockfile)/, fix: "pnpm install --frozen-lockfile" },
+  { lockfile: "yarn.lock", loose: /^yarn( install)?(?!.*--(immutable|frozen-lockfile))(\s|$)/, fix: "yarn install --immutable (Yarn 1: --frozen-lockfile)" },
+  { lockfile: "bun.lock", loose: /^bun (install|i)\b(?!.*--frozen-lockfile)/, fix: "bun install --frozen-lockfile" },
+];
+
+/** Whether an install command would rewrite a lockfile the repo tracks: verification must never change tracked files. */
+export function lockfileIssue(cmd: string, cwd: string, files: readonly string[]): string | null {
+  const dir = cwd === "." ? "" : `${cwd.replace(/\/$/, "")}/`;
+  for (const rule of LOCKFILE_INSTALLS) {
+    if (files.includes(`${dir}${rule.lockfile}`) && rule.loose.test(cmd.trim())) return `can rewrite the tracked ${rule.lockfile}; use ${rule.fix}`;
+  }
+  return null;
+}
+
 /** Schema first; then what the schema can't say: commands must be runnable and the strategy must be the derived one. */
 export function checkProfile(root: string, files: readonly string[], data: unknown, map: RepoMap, config: Config): ProfileCheck {
   const schema = validate("profile", data);
@@ -43,6 +60,11 @@ export function checkProfile(root: string, files: readonly string[], data: unkno
   for (const { path: at, command, scoped } of profileCommands(profile)) {
     for (const message of checkCommand(root, files, command.cmd, command.cwd, options)) issues.push({ path: `${at}/cmd`, message });
     if (scoped !== undefined) for (const message of checkCommand(root, files, scoped, command.cwd, options)) issues.push({ path: `${at}/scoped`, message });
+  }
+
+  if (profile.install !== null) {
+    const lock = lockfileIssue(profile.install.cmd, profile.install.cwd, files);
+    if (lock !== null) issues.push({ path: "/install/cmd", message: lock });
   }
 
   const probes = [

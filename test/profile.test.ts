@@ -10,7 +10,7 @@ import { checkCommand, tokenize } from "../src/profile/commands.ts";
 import { isAnswered, loadLocal, setUnknown } from "../src/profile/local.ts";
 import { selectStrategy } from "../src/profile/strategy.ts";
 import type { Profile } from "../src/profile/types.ts";
-import { checkProfile } from "../src/profile/validate.ts";
+import { checkProfile, lockfileIssue } from "../src/profile/validate.ts";
 import { verifyProfile } from "../src/profile/verify.ts";
 import { makeProject } from "./helpers/project.ts";
 
@@ -123,6 +123,18 @@ describe("command checks", () => {
   it("rejects a missing or escaping cwd", () => {
     expect(issues("pnpm test", "nope")).toEqual(['cwd "nope" is not a directory']);
     expect(issues("pnpm test", "../..")).toEqual(['cwd "../.." is outside the project']);
+  });
+});
+
+describe("install commands and lockfiles", () => {
+  it("flags installs that can rewrite a tracked lockfile, and accepts the frozen forms", () => {
+    expect(lockfileIssue("npm install", ".", ["package-lock.json"])).toBe("can rewrite the tracked package-lock.json; use npm ci");
+    expect(lockfileIssue("npm ci --include=dev", ".", ["package-lock.json"])).toBeNull();
+    expect(lockfileIssue("pnpm install", ".", ["pnpm-lock.yaml"])).toMatch(/frozen-lockfile/);
+    expect(lockfileIssue("pnpm install --frozen-lockfile", ".", ["pnpm-lock.yaml"])).toBeNull();
+    expect(lockfileIssue("yarn", "app", ["app/yarn.lock"])).toMatch(/immutable/);
+    expect(lockfileIssue("yarn install --immutable", "app", ["app/yarn.lock"])).toBeNull();
+    expect(lockfileIssue("npm install", ".", [])).toBeNull();
   });
 });
 
