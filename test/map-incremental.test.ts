@@ -170,6 +170,8 @@ ordersRouter.get("/api/orders", requireUser, async (_req, res) => {
     execFileSync("git", ["-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false", "commit", "-q", "--allow-empty", "-m", "empty"], { cwd: root });
     expect((await cli("map", "--update")).code).toBe(0);
     expect(read(".plumb/map/manifest.json")).toBe(manifest);
+    expect((await cli("map")).code).toBe(0);
+    expect(read(".plumb/map/manifest.json")).toBe(manifest);
   });
 
   it("map rebuild restores one conflicted component file and leaves the others alone", async () => {

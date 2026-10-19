@@ -62,9 +62,9 @@ function previousMap(root: string): RepoMap | null {
 async function build(root: string, update: boolean, asJson: boolean, io: Io): Promise<ExitCode> {
   const before = update ? previousMap(root) : null;
   const { map, summaryIssues } = await buildMap({ root, cache: update ? "read-write" : "write-only" });
-  // An update leaves a map that differs only in builtAtCommit alone: HEAD moving isn't a change (D42), and rewriting
-  // it would leave a diff after every commit. A full build always writes.
-  const { changed, removed } = update && before !== null && staleMapFiles(root, map).length === 0 ? { changed: [], removed: [] } : writeMap(root, renderMap(map));
+  // A map that differs only in builtAtCommit is left alone: HEAD moving isn't a change (D42), and rewriting it would
+  // leave a diff after every commit.
+  const { changed, removed } = staleMapFiles(root, map).length === 0 ? { changed: [], removed: [] } : writeMap(root, renderMap(map));
 
   const oldFiles = before === null ? new Map<string, string>() : fileHashes(before);
   const newFiles = fileHashes(map);
