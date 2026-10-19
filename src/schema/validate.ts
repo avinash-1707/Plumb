@@ -17,6 +17,7 @@ export const SCHEMA_NAMES = [
   "knowledge/tests",
   "knowledge/frontend",
   "knowledge/risk",
+  "verify-report",
 ] as const;
 export type SchemaName = (typeof SCHEMA_NAMES)[number];
 

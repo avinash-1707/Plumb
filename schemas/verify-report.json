@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "plumb:/schemas/verify-report.json",
+  "title": "Plumb verification report (.plumb/evidence/<run-id>/report.json)",
+  "description": "Written by the agent after driving features with the verify skill. plumb verify --stamp checks it before writing a deep stamp.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "runId", "tree", "features"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "runId": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" },
+    "tree": {
+      "description": "`git write-tree` when the drive started: the staged content this report proves.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}([0-9a-f]{24})?$"
+    },
+    "features": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/feature" } }
+  },
+  "$defs": {
+    "feature": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "subFeatures"],
+      "properties": {
+        "id": { "$ref": "common.json#/$defs/kebabId" },
+        "subFeatures": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/subFeature" } }
+      }
+    },
+    "subFeature": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "status", "entryPoint", "artifacts", "observed"],
+      "properties": {
+        "id": { "$ref": "common.json#/$defs/kebabId" },
+        "status": {
+          "description": "verified: driven on the real user path with proof. verified-unreachable: could not be reached; prerequisite says why. failed: driven, and the behavior was wrong.",
+          "enum": ["verified", "verified-unreachable", "failed"]
+        },
+        "entryPoint": {
+          "description": "The user entry point actually driven (route, button, endpoint, command), or the one attempted when unreachable.",
+          "type": "string",
+          "minLength": 1
+        },
+        "artifacts": {
+          "description": "Evidence files, relative to the run directory and under <feature-id>/.",
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "observed": { "description": "What the evidence shows, in one or two sentences.", "type": "string", "minLength": 1 },
+        "prerequisite": { "description": "For verified-unreachable: the unmet prerequisite.", "type": "string", "minLength": 1 }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "status": { "type": "string", "const": "verified-unreachable" } } },
+          "then": { "properties": { "prerequisite": { "type": "string" } }, "required": ["prerequisite"] }
+        },
+        {
+          "if": { "properties": { "status": { "type": "string", "const": "verified" } } },
+          "then": { "properties": { "artifacts": { "type": "array", "minItems": 1 } } }
+        }
+      ]
+    }
+  }
+}

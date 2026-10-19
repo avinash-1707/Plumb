@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "runId": "run-20261018-120000-ab12",
+  "tree": "4b825dc642cb6eb9a060e54bf8d69288fbee4904",
+  "features": [
+    {
+      "id": "create-order",
+      "subFeatures": [
+        {
+          "id": "place",
+          "status": "verified",
+          "entryPoint": "POST /api/orders",
+          "artifacts": ["create-order/response.json"],
+          "observed": "201 with the new order; GET /api/orders/7 returns it"
+        },
+        {
+          "id": "pay",
+          "status": "verified-unreachable",
+          "entryPoint": "/checkout pay button",
+          "artifacts": [],
+          "observed": "payment provider sandbox key missing",
+          "prerequisite": "STRIPE_KEY in .plumb/local.json"
+        }
+      ]
+    }
+  ]
+}
