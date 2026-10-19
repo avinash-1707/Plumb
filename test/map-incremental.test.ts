@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { beforeAll, describe, expect, it } from "vitest";
@@ -163,6 +164,12 @@ ordersRouter.get("/api/orders", requireUser, async (_req, res) => {
     expect(stale.stdout).toContain(".plumb/map/components/api.json");
     expect((await cli("map", "--update")).code).toBe(0);
     expect((await cli("map", "--check")).code).toBe(0);
+    // A fresh map isn't rewritten just because HEAD moved: builtAtCommit alone is no change.
+    commit(root, {}, "commit the change");
+    const manifest = read(".plumb/map/manifest.json");
+    execFileSync("git", ["-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false", "commit", "-q", "--allow-empty", "-m", "empty"], { cwd: root });
+    expect((await cli("map", "--update")).code).toBe(0);
+    expect(read(".plumb/map/manifest.json")).toBe(manifest);
   });
 
   it("map rebuild restores one conflicted component file and leaves the others alone", async () => {
