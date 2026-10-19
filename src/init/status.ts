@@ -15,9 +15,21 @@ export interface StatusReport {
   skill: string | null;
   gate: { present: boolean; smoke: boolean; stagedTreePassed: boolean; last: { dir: string; passed: boolean } | null };
   lastDeepVerification: { tree: string; report: string; features: string[]; stampedAt: string } | null;
+  /** The newest launched run that wrote a report.json and was cleaned up: proof the verify skill has run. */
+  lastProvenRun: string | null;
   recentBypasses: string[];
   hooks: string | null;
   conflicts: string[];
+}
+
+function provenRun(root: string): string | null {
+  const dir = path.join(root, EVIDENCE_DIR);
+  if (!existsSync(dir)) return null;
+  const runs = readdirSync(dir)
+    .filter((name) => name.startsWith("run-") && existsSync(path.join(dir, name, "report.json")) && existsSync(path.join(dir, name, "run.json")))
+    .filter((name) => (JSON.parse(readFileSync(path.join(dir, name, "run.json"), "utf8")) as { cleanedUpAt?: string | null }).cleanedUpAt != null)
+    .sort();
+  return runs.at(-1) ?? null;
 }
 
 function newest(dir: string, prefix: string): { name: string; mtime: number } | null {
@@ -69,6 +81,7 @@ export async function collectStatus(root: string): Promise<StatusReport> {
       last: lastGate === null ? null : { dir: `${EVIDENCE_DIR}/${lastGate.name}`, passed: existsSync(path.join(stamps, `fast-${lastGate.name.slice("gate-".length)}`)) },
     },
     lastDeepVerification: lastDeep === null ? null : (JSON.parse(readFileSync(path.join(stamps, lastDeep.name), "utf8")) as StatusReport["lastDeepVerification"]),
+    lastProvenRun: provenRun(root),
     recentBypasses: existsSync(bypassLog) ? readFileSync(bypassLog, "utf8").trim().split("\n").filter((l) => l !== "").slice(-5) : [],
     hooks: record === null ? null : record.method,
     conflicts: conflicts(root, [".plumb", ...(skill === null ? [] : [skill])]),
@@ -83,6 +96,7 @@ export function formatStatus(s: StatusReport): string {
   lines.push(`  gate       ${s.gate.present ? `${GATE_PATH} (smoke boot ${s.gate.smoke ? "on" : "off"}); staged tree ${s.gate.stagedTreePassed ? "passed" : "not checked yet"}` : "not generated"}`);
   if (s.gate.last !== null) lines.push(`  last gate  ${s.gate.last.passed ? "passed" : "failed"} (${s.gate.last.dir})`);
   lines.push(`  deep       ${s.lastDeepVerification === null ? "never verified" : `${s.lastDeepVerification.features.join(", ")} at ${s.lastDeepVerification.stampedAt} (${s.lastDeepVerification.report})`}`);
+  lines.push(`  proven     ${s.lastProvenRun === null ? "the verify skill has never run to a report (the init self-proof didn't finish)" : `${s.lastProvenRun} (${EVIDENCE_DIR}/${s.lastProvenRun}/)`}`);
   lines.push(`  hooks      ${s.hooks === null ? "not installed (plumb hooks install)" : `installed via ${s.hooks}`}`);
   if (s.recentBypasses.length > 0) lines.push("  bypasses", ...s.recentBypasses.map((b) => `    ${b}`));
   if (s.conflicts.length > 0) lines.push("  conflicts  managed regions edited by hand; merge these and delete them:", ...s.conflicts.map((c) => `    ${c}`));
