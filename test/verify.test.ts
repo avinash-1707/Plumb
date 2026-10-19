@@ -390,4 +390,21 @@ describe("plumb verify CLI", () => {
     expect(JSON.parse(result.stdout)).toMatchObject({ drive: ["orders"], features: [{ id: "orders", tier: "deep", recipe: ".claude/skills/verify-fixture/features/orders.md" }] });
     expect(readdirSync(root)).not.toContain(".claude");
   });
+
+  it("leaves deepIgnore files out of a staged plan, but not out of a branch plan", async () => {
+    const root = makeProject({
+      "package.json": "{}",
+      "src/orders.css": "x",
+      ".plumb/config.json": JSON.stringify({ schemaVersion: 1, deepIgnore: ["**/*.css"] }),
+      ".plumb/profile.json": JSON.stringify(profileWith()),
+      ".plumb/features.json": JSON.stringify({ features: [
+        { id: "orders", file: "features/orders.md", paths: ["src/orders.*"], components: [], entryPoints: [], tier: "deep" },
+      ] }),
+    });
+    writeFileSync(path.join(root, "src/orders.css"), "y");
+    execFileSync("git", ["add", "src/orders.css"], { cwd: root });
+    expect(JSON.parse((await run(["verify", "--plan", "--staged", "--json", "--cwd", root])).stdout)).toMatchObject({ drive: [] });
+    execFileSync("git", ["-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "css"], { cwd: root });
+    expect(JSON.parse((await run(["verify", "--plan", "HEAD~1", "--json", "--cwd", root])).stdout)).toMatchObject({ drive: ["orders"] });
+  });
 });

@@ -5,6 +5,7 @@ import { CouldNotCompleteError, UsageError } from "../errors.ts";
 import { ExitCode } from "../exit-codes.ts";
 import { FEATURES_PATH, loadFeatures } from "../features.ts";
 import { listFiles, writeTree } from "../git.ts";
+import { matchesAny } from "../glob.ts";
 import { branchChanges, stagedChanges } from "../impact/changes.ts";
 import { computeImpact } from "../impact/impact.ts";
 import type { Io } from "../io.ts";
@@ -43,13 +44,17 @@ async function freshMap(root: string): Promise<{ map: RepoMap; files: string[] }
   return { map, files: listFiles(root).filter((f) => !isIgnored(f, config)) };
 }
 
-/** Deep features the given changes touch, from a fresh map of the working tree. */
-async function touchedFeatures(root: string, changed: string[]): Promise<Array<{ id: string; tier: "fast-only" | "deep" }>> {
+/**
+ * Features the given changes touch, from a fresh map of the working tree. `staged` is a commit's own change set, so
+ * it honors `deepIgnore` like the commit hook does; a branch's changes (PR verification) do not.
+ */
+async function touchedFeatures(root: string, changed: string[], staged: boolean): Promise<Array<{ id: string; tier: "fast-only" | "deep" }>> {
   const config = loadConfig(root);
+  const deepIgnore = staged ? (config.deepIgnore ?? []) : [];
   const features = loadFeatures(root);
   if (features === null) throw new CouldNotCompleteError(`${FEATURES_PATH} doesn't exist yet; /plumb-init generates it`);
   const { map } = await buildMap({ root, config, cache: "read-write" });
-  return computeImpact(map, changed.filter((f) => !isIgnored(f, config)), features).features ?? [];
+  return computeImpact(map, changed.filter((f) => !isIgnored(f, config) && !matchesAny(f, deepIgnore)), features).features ?? [];
 }
 
 function formatIssues(issues: readonly SkillIssue[]): string {
@@ -103,7 +108,7 @@ export async function verifyCommand(argv: readonly string[], io: Io): Promise<Ex
     const changed = base === undefined ? stagedChanges(root) : branchChanges(root, base).files;
     const dir = skillDir(profile.app.slug);
     const features = loadFeatures(root);
-    const touched = (await touchedFeatures(root, changed)).map((f) => ({ ...f, recipe: `${dir}/${features?.features.find((x) => x.id === f.id)?.file ?? ""}` }));
+    const touched = (await touchedFeatures(root, changed, base === undefined)).map((f) => ({ ...f, recipe: `${dir}/${features?.features.find((x) => x.id === f.id)?.file ?? ""}` }));
     const deep = touched.filter((f) => f.tier === "deep");
     const lines = [`skill: ${dir}/SKILL.md`, `changes: ${base === undefined ? "staged" : `${base}...HEAD`} (${String(changed.length)} files)`];
     if (touched.length === 0) lines.push("no mapped feature is touched; nothing to drive");
@@ -178,7 +183,7 @@ export async function verifyCommand(argv: readonly string[], io: Io): Promise<Ex
   const runId = values.stamp ?? "";
   const features = loadFeatures(root);
   if (features === null) throw new CouldNotCompleteError(`${FEATURES_PATH} doesn't exist yet; /plumb-init generates it`);
-  const touchedDeep = (await touchedFeatures(root, stagedChanges(root))).filter((f) => f.tier === "deep").map((f) => f.id);
+  const touchedDeep = (await touchedFeatures(root, stagedChanges(root), true)).filter((f) => f.tier === "deep").map((f) => f.id);
   const check = checkStamp(root, runId, writeTree(root), features, touchedDeep);
   if (!check.ok) {
     out({ ok: false, issues: check.issues }, `not stamped:\n${check.issues.map((i) => `  ✗ ${i}`).join("\n")}\n`);
