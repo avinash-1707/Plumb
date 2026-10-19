@@ -44,8 +44,9 @@ git add .plumb .claude/skills .gitignore && git commit -m "Add Plumb"
 
 ```sh
 git clone https://github.com/avinash-1707/Plumb && cp -r Plumb/examples/node-web shop && cd shop
+rm -rf .plumb-golden    # the example's test fixtures, not part of the app
 git init -q && git add -A && git commit -qm init
-pnpm install && pnpm exec playwright install chromium
+pnpm install && pnpm --filter @node-web/web exec playwright install chromium
 claude    # then: /plumb-init
 ```
 
