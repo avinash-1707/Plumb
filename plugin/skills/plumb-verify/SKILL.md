@@ -2,7 +2,7 @@
 name: plumb-verify
 description: Deep-verify staged changes, or named features, by driving the running app with the repo's verify skill and capturing evidence; writes Plumb's deep stamp on a pass. Use when the user runs /plumb-verify, or when Plumb's commit hook blocks a git commit and says to run /plumb-verify.
 argument-hint: "[feature-id ...]"
-allowed-tools: Bash(plumb *) Bash(.plumb/bin/doctor *) Bash(curl *) Bash(node *) Read Glob Grep Write
+allowed-tools: Bash(plumb *) Bash(.plumb/bin/doctor *) Bash(curl *) Bash(node *) Read Glob Grep Write Edit
 ---
 
 # Verify changes in the running app

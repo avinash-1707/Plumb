@@ -3,7 +3,7 @@ name: plumb-pr
 description: Verify a branch the way a pull request needs it: Plumb's impact set picks the deep-tier features the branch touches, you drive exactly those in the running app with the repo's verify skill, and Plumb writes the PR report. Use when the user runs /plumb-pr or asks to verify a branch or PR.
 argument-hint: "[base, default main]"
 disable-model-invocation: true
-allowed-tools: Bash(plumb *) Bash(.plumb/bin/doctor *) Bash(curl *) Bash(node *) Read Glob Grep Write
+allowed-tools: Bash(plumb *) Bash(.plumb/bin/doctor *) Bash(curl *) Bash(node *) Read Glob Grep Write Edit
 ---
 
 # Verify this branch for a pull request
