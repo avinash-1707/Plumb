@@ -26,6 +26,7 @@
       }
     },
     "ignore": { "description": "Globs excluded from map and gate.", "type": "array", "items": { "type": "string", "minLength": 1 } },
+    "deepIgnore": { "description": "Globs whose changes never require a live verification. The fast gate still runs on them.", "type": "array", "items": { "type": "string", "minLength": 1 } },
     "gate": {
       "type": "object",
       "additionalProperties": false,

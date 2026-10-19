@@ -17,7 +17,7 @@ For `web-app`, `api-backend`, and `monorepo` repos with run targets, the gate ca
 
 ## Deep and fast-only features
 
-Each feature in `.plumb/features.json` has a `tier`. `deep` features need a live drive when an agent's commit touches them (their `paths` globs match a staged file); `fast-only` features are covered by the fast gate alone. `/plumb-init` seeds the 3 to 5 features where a break would hurt most (money, auth, data writes, frequently changed code) as `deep`. Edit the tiers and paths as you see fit; `plumb verify --validate` checks them against the map.
+Each feature in `.plumb/features.json` has a `tier`. `deep` features need a live drive when an agent's commit touches them (their `paths` globs match a staged file); `fast-only` features are covered by the fast gate alone. `/plumb-init` seeds the 3 to 5 features where a break would hurt most (money, auth, data writes, frequently changed code) as `deep`. To keep low-risk files (styles, snapshots, static assets) from triggering a live drive, list their globs in `"deepIgnore"` in `.plumb/config.json`; the fast gate still runs on them. Edit the tiers and paths as you see fit; `plumb verify --validate` checks them against the map.
 
 ## Services and secrets
 

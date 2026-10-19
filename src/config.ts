@@ -7,6 +7,7 @@ export interface Config {
   strategy?: "library-cli" | "api-backend" | "web-app" | "monorepo";
   components?: Array<{ id: string; include: string[] }>;
   ignore?: string[];
+  deepIgnore?: string[];
   gate?: { smoke?: boolean; budgetSec?: number };
   review?: {
     concerns?: Array<"architecture" | "resilience" | "concurrency" | "resources">;

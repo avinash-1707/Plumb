@@ -2,6 +2,7 @@ import { execFileSync, spawnSync } from "node:child_process";
 import { appendFileSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { loadConfig } from "../config.ts";
 import { FEATURES_PATH, type FeatureIndex } from "../features.ts";
 import { GATE_PATH } from "../gate/script.ts";
 import { matchesAny } from "../glob.ts";
@@ -154,7 +155,9 @@ function checkProject(project: string, call: CommitCall, env: NodeJS.ProcessEnv)
   // The deep check is cheap, so it goes first: a missing deep stamp blocks at once instead of after a long gate run
   // that could outlast the hook's timeout (a timed-out hook doesn't block).
   const features = loadFeatureIndex(project);
-  const deep = (features?.features ?? []).filter((f) => f.tier === "deep" && staged.some((file) => matchesAny(file, f.paths))).map((f) => f.id);
+  const deepIgnore = loadConfig(project).deepIgnore ?? [];
+  const needsDeep = staged.filter((file) => !matchesAny(file, deepIgnore));
+  const deep = (features?.features ?? []).filter((f) => f.tier === "deep" && needsDeep.some((file) => matchesAny(file, f.paths))).map((f) => f.id);
   if (deep.length > 0 && !existsSync(path.join(project, STAMPS_DIR, `deep-${tree}`))) {
     const staging = call.all || call.pathspecs.length > 0 ? " The commit stages files itself (-a or pathspecs), but /plumb-verify proves the index: stage the changes with git add first, then commit without -a or paths." : "";
     return {

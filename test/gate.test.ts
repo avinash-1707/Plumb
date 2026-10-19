@@ -330,6 +330,29 @@ describe("Claude Code pre-commit hook", () => {
   });
 });
 
+describe("deepIgnore", () => {
+  it("skips the deep requirement for ignored files but still requires it when a deep file is staged with them", () => {
+    const root = projectWithGate({ typecheck: cmd(COUNT("typecheck")) }, {
+      "src/orders.css": "1",
+      "src/orders.js": "1",
+      ".plumb/config.json": JSON.stringify({ schemaVersion: 1, deepIgnore: ["**/*.css"] }),
+      ".plumb/features.json": JSON.stringify({ features: [{ id: "orders", file: "features/orders.md", paths: ["src/orders.*"], components: [], entryPoints: [], tier: "deep" }] }),
+    });
+    git(root, "add", "-A");
+    git(root, "commit", "-q", "-m", "plumb");
+    const payload = { tool_name: "Bash", tool_input: { command: "git commit -m x" }, cwd: root, hook_event_name: "PreToolUse" };
+
+    writeFileSync(path.join(root, "src/orders.css"), "2");
+    git(root, "add", "src/orders.css");
+    expect(claudePreCommit(payload).block).toBe(false);
+    expect(runs(root)).toEqual(["typecheck"]);
+
+    writeFileSync(path.join(root, "src/orders.js"), "2");
+    git(root, "add", "src/orders.js");
+    expect(claudePreCommit(payload).block).toBe(true);
+  });
+});
+
 describe("managed regions", () => {
   it("replaces untouched regions, and writes .plumb-new instead of overwriting a region edited by hand", () => {
     const dir = makeProject({ "README.md": "x" });
