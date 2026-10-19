@@ -11,7 +11,7 @@ You are running Plumb's init flow in this repository. Plumb's CLI (`plumb`) does
 
 Every `plumb` command exits 0 on success, 1 when a check fails, 2 when Plumb couldn't complete (the message names the blocker), 3 on invalid usage.
 
-Run each `plumb` command exactly as written, on its own: no `;`, `&&`, pipes, redirects, or `echo $?`. The Bash tool already reports the exit code, and sessions often allow `plumb` commands and nothing else, so a chained command can be refused.
+Run every shell command as its own Bash call, exactly as written: no `;`, `&&`, pipes, redirects, or `echo $?`. Sessions allow commands one by one (`plumb`, `node`, `curl`), so a chained command is refused even when each part alone would run. Create folders and files with the Write tool, and capture command output from a drive script, not with shell redirects.
 
 ## 0. Already set up?
 
@@ -20,7 +20,12 @@ If `.plumb/profile.json` and `.plumb/features.json` both exist, this repository 
 1. Run `plumb init --refresh`. It rebuilds the map and regenerates Plumb's managed sections from the current profile. When nothing changed, it changes nothing. A managed region someone edited by hand is left alone, and the new version is written next to it as `<file>.plumb-new`.
 2. Run `plumb verify --validate`.
 
-If both pass, report that Plumb is already set up (include the refresh output) and stop; `/plumb-refine` is the flow for updating the skill's content. If the refresh reports conflicts, list them and stop. If validate fails, continue from step 8 to repair the skill, keeping every file that is still valid.
+Then decide where to pick up:
+
+- The refresh reports conflicts: list them and stop.
+- Validate fails: continue from step 8 to repair the skill, keeping every file that is still valid.
+- `plumb status` shows `proven` as never: an earlier init stopped before its self-proof finished. Continue from step 9.
+- Otherwise Plumb is set up: report that (include the refresh output) and stop. `/plumb-refine` is the flow for updating the skill's content.
 
 ## 1. Map the repository
 

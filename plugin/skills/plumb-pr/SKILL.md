@@ -10,7 +10,7 @@ allowed-tools: Bash(plumb *) Bash(.plumb/bin/doctor *) Bash(curl *) Bash(node *)
 
 Base: $ARGUMENTS (use `main` when empty).
 
-Run each `plumb` command exactly as written, on its own: no `;`, `&&`, pipes, or redirects. Never edit product code.
+Run every shell command as its own Bash call, exactly as written: no `;`, `&&`, pipes, redirects, or `echo $?`. Sessions allow commands one by one (`plumb`, `node`, `curl`), so a chained command is refused even when each part alone would run. Create folders and files with the Write tool, and capture command output from a drive script, not with shell redirects. Never edit product code.
 
 ## 1. Plan
 

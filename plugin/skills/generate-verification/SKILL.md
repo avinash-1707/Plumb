@@ -10,7 +10,7 @@ You turn Plumb's scaffold into a verify skill an agent can follow cold, mid-task
 
 You work in a draft directory, `.plumb/cache/draft/verify-<slug>/`, never in `.claude/`: Claude Code asks before every write under `.claude/`, so Plumb moves the finished draft there itself in step 5.
 
-Run each `plumb` command exactly as written, on its own: no `;`, `&&`, pipes, or redirects.
+Run every shell command as its own Bash call, exactly as written: no `;`, `&&`, pipes, redirects, or `echo $?`. Sessions allow commands one by one (`plumb`, `node`, `curl`), so a chained command is refused even when each part alone would run. Create folders and files with the Write tool, and capture command output from a drive script, not with shell redirects.
 
 ## 1. Scaffold
 

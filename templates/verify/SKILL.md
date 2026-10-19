@@ -7,7 +7,7 @@ description: "Drive {{plumb:app}} ({{plumb:surface}}) the way a user does and ca
 
 Drive the real app on the real user path and keep the proof. Follow the sections in order: Launch, Doctor, Drive, Evidence, Cleanup. The feature map in `features/` says what to drive; `features/README.md` is its index.
 
-Run every `plumb` command on its own, exactly as written (no `;`, `&&`, or pipes).
+Run every shell command as its own Bash call, exactly as written: no `;`, `&&`, pipes, redirects, or `echo $?`. Sessions allow commands one by one (`plumb`, `node`, `curl`), so a chained command is refused even when each part alone would run. Create folders and files with the Write tool, and capture command output from a drive script, not with shell redirects.
 
 ## Launch
 

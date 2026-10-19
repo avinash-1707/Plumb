@@ -9,7 +9,7 @@ allowed-tools: Bash(plumb *) Bash(.plumb/bin/doctor *) Bash(curl *) Bash(node *)
 
 You keep `.claude/skills/verify-<slug>/` and `.plumb/features.json` true to the app. You may change only the verify skill (through its draft), `.plumb/features.json`, and `.plumb/bin/doctor` below its managed block. Never product code. Never edit inside a `plumb:managed` block.
 
-Run each `plumb` command exactly as written, on its own: no `;`, `&&`, pipes, or redirects.
+Run every shell command as its own Bash call, exactly as written: no `;`, `&&`, pipes, redirects, or `echo $?`. Sessions allow commands one by one (`plumb`, `node`, `curl`), so a chained command is refused even when each part alone would run. Create folders and files with the Write tool, and capture command output from a drive script, not with shell redirects.
 
 The run ends with exactly one outcome, stated explicitly:
 
