@@ -1,33 +1,126 @@
 # Plumb
 
-Maps your codebase, runs your app to prove changes actually work, and checks every commit and pull request against your architecture for leaks, races, and design flaws.
+Plumb maps your codebase, proves changes work in the running app, and checks every commit before it lands.
 
-Plumb is in early development.
+- **Map.** A deterministic graph of components, routes, imports, database tables, env vars, and shared state, committed in `.plumb/map/`. No model involved.
+- **Verify.** A skill generated for your project that boots the real app, drives it the way a user does, and keeps the evidence (screenshots, ARIA snapshots, responses).
+- **Gate.** A fast pre-commit check (lint, typecheck, related tests) that never calls a model. When a coding agent commits a change to a key feature, Plumb blocks the commit until that feature has been driven live and passed.
 
-## The name
+Plumb runs on your machine. It uses the agent you already run (Claude Code), so there's no extra API key, account, or hosted service.
 
-Builders hang a plumb line, a weight on a string, beside a wall to check that it's straight before they build higher. To plumb something also means to explore it to the bottom. Plumb does both: it maps the repo, then checks each change against that map.
+## Install
+
+You need Node 22.20 or later, git, and Claude Code. Docker is needed only if your app's services (a database, a queue) run in docker compose.
+
+1. Install the CLI. The commit hook runs it on every agent Bash call, so a global install keeps that fast:
+
+   ```sh
+   npm install -g @plumb-cli/plumb
+   ```
+
+2. Install the Claude Code plugin, in a Claude Code session:
+
+   ```
+   /plugin install plumb --marketplace avinash-1707/Plumb
+   ```
+
+   On Claude Code older than 2.1.275, run `/plugin marketplace add avinash-1707/Plumb`, then `/plugin install plumb@plumb`.
+
+3. In your repository, in Claude Code:
+
+   ```
+   /plumb-init
+   ```
+
+`/plumb-init` takes a few minutes. It maps the repo; explores how the app builds, runs, and tests; writes `.plumb/profile.json`; asks you only for what it can't observe (an API key, an external account); proves the app boots; generates the verify skill; drives one feature end to end to prove the skill works; and installs the git hook. Then commit what it generated:
+
+```sh
+git add .plumb .claude/skills .gitignore && git commit -m "Add Plumb"
+```
+
+## Try it on the example
+
+`examples/node-web` is a small shop (Next.js, Express, Prisma, Postgres) used as Plumb's integration test:
+
+```sh
+git clone https://github.com/avinash-1707/Plumb && cp -r Plumb/examples/node-web shop && cd shop
+git init -q && git add -A && git commit -qm init
+pnpm install && pnpm exec playwright install chromium
+claude    # then: /plumb-init
+```
+
+Then see the gate work:
+
+- **A human commit with a type error is blocked.** Break a type in `apps/api/src/pricing.ts`, `git add` it, and `git commit`: the hook prints which check failed, the log, and the error lines.
+- **An agent commit to a key feature is blocked until it's proven.** Ask Claude to change the order flow and commit. The commit is refused with "Run /plumb-verify <feature>, then commit again". `/plumb-verify` boots the app on its own ports, drives the feature, saves the evidence, and stamps that exact staged content, after which the same commit goes through.
 
 ## How it works
 
-Plumb is an open-source CLI that runs on your machine and in your own CI. It plugs into Claude Code as a plugin and into git as a pre-commit hook, with GitHub Actions and MCP support planned.
+| Step | What happens | Model? |
+|---|---|---|
+| Map | `plumb map` extracts components, entry points, and edges from configs, the TypeScript compiler, and dependency-cruiser. Every fact carries `file:line` evidence | No |
+| Discover | Five read-only explorer agents read the map and the code: structure, runtime, tests, frontend, risk. The CLI validates their findings and every citation | Yes |
+| Profile | The session writes `.plumb/profile.json` (install, build, checks, run targets, services). `plumb profile verify` runs every command and boots every target, then tears down everything it started | Writing it, yes. Checking it, no |
+| Verify skill | `.claude/skills/verify-<app>/`: Launch, Doctor, Drive, Evidence, Cleanup, and a feature map with one file per key feature. Plumb fills everything deterministic; the session writes the recipes; `plumb verify --validate` checks the structure | Yes |
+| Gate | `.plumb/gate.sh` is plain POSIX sh, committed, and runs without Plumb installed. A pass is stamped by the staged tree's hash, so the same content is never checked twice | No |
+| Agent hook | The plugin's PreToolUse hook sees `git commit`, runs the gate, and blocks while the staged change touches a deep-tier feature that has no passing live verification for that exact tree | No |
 
-Running `plumb init` builds a map of how the repo fits together: components, entry points, imports, routes, database tables, queues, and shared state. It then works out how the project builds, runs, and tests, and writes a verification skill for that project. The skill starts the real app, uses it the way a user would, and saves evidence of what happened.
+Everything Plumb starts (servers, containers) runs in its own process group and is torn down by recorded id, never by process name. Evidence survives cleanup, and `plumb verify --cleanup` checks that it did.
 
-After that, every commit goes through a quick check that never calls a model: lint, typecheck, and tests for the files you changed. When a coding agent commits a change that touches a key feature, Plumb asks it to verify that feature in the running app first. Pull requests get a review scoped to the parts of the repo the change affects, checked against the map and your architecture rules. Plumb reports only problems the change introduced, and blocks only on the ones it can prove.
+## Commands
 
-We don't host anything. Plumb uses the agent you already run, so there's no extra API key or account.
+In Claude Code:
 
-## Glossary
-
-| Term | Meaning |
+| Command | Does |
 |---|---|
-| Map | The graph of components, entry points, edges, resources, and shared state, stored in `.plumb/map/`. Built by extraction, not by a model. |
-| Profile | How the project builds, runs, and tests, and which services it needs. Stored in `.plumb/profile.json`. |
-| Verify skill | The project-specific skill at `.claude/skills/verify-<app>/` that drives the real app and captures evidence. |
-| Feature map | The `features/` folder inside the verify skill, with one file per user-facing feature: how to drive it and what proves it works. |
-| Gate | The checks that run before a commit lands. The fast tier runs plain commands; the deep tier has an agent drive the app. |
-| Impact set | The components a diff touches, plus their dependents and anything sharing a resource with them. Computed from the map. |
-| Finding | A review result. It needs proof or a concrete failure scenario to block; without one it stays "suspected". |
-| Ledger | The committed record of known findings and suppressions, so a review reports only what a change introduces. |
-| Host agent | The coding agent Plumb hands judgment work to: your Claude Code session, or headless `claude -p` in CI. |
+| `/plumb-init` | Full setup, as above. On a set-up repo it refreshes Plumb's generated sections instead |
+| `/plumb-verify [features]` | Drive the features the staged changes touch (or the named ones), keep the evidence, and stamp the staged tree |
+| `/plumb-pr [base]` | Verify exactly the features a branch touches and write a PR report |
+| `/plumb-refine` | Re-check every feature file against the code and the live app; ends `clean`, `changed`, or `blocked` |
+| `/plumb-status` | What Plumb has set up and what it last proved |
+
+The CLI (every command takes `--json` and `--cwd <dir>`; exit 0 ok, 1 check failed, 2 couldn't complete, 3 bad usage):
+
+| Command | Does |
+|---|---|
+| `plumb init [--refresh]` | Deterministic setup, or regenerate managed sections |
+| `plumb map [--update \| --check]`, `plumb map show <id>`, `plumb map query <expr>` | Build, update, check, and query the map |
+| `plumb impact <base> \| --staged` | Components and features a diff affects |
+| `plumb gate [--dry-run \| --regenerate]` | Run, preview, or regenerate the fast tier |
+| `plumb hooks install \| uninstall` | Chain the gate into husky, lefthook, pre-commit, `core.hooksPath`, or `.git/hooks`; uninstall restores the original byte for byte |
+| `plumb verify --plan \| --launch \| --doctor \| --cleanup \| --stamp \| --validate` | The deterministic parts of a live verification |
+| `plumb pr <base> [--run <id>]` | PR verification plan and report |
+| `plumb status`, `plumb doctor` | State of the setup; health of Plumb itself |
+
+## Files Plumb writes
+
+Committed: `.plumb/map/`, `.plumb/profile.json`, `.plumb/features.json`, `.plumb/gate.sh`, `.plumb/bin/doctor`, `.claude/skills/verify-<app>/`, and a `playwright` entry in `.mcp.json` only when your app has a UI and no browser harness of its own.
+
+Not committed (Plumb adds them to `.gitignore`): `.plumb/knowledge/`, `.plumb/local.json` (secrets, never printed), `.plumb/evidence/`, `.plumb/stamps/`, `.plumb/cache/`.
+
+Generated files you may edit have `plumb:managed` regions. Plumb only rewrites inside them, and if you edited inside one it writes `<file>.plumb-new` next to your file instead of overwriting it.
+
+## Bypassing
+
+- Humans: `git commit --no-verify` skips the git hook, as with any hook.
+- Agents: prefixing the command with `PLUMB_SKIP=1` skips the Claude Code hook. Every bypass is logged and shown by `plumb status`.
+
+## Strategies
+
+Plumb picks a strategy from what discovery finds: `web-app`, `api-backend`, `library-cli`, or `monorepo`. See [guides/strategies.md](guides/strategies.md).
+
+## Status
+
+v1 supports Node/TypeScript repositories. Review agents (architecture rules, resilience, concurrency, resource leaks), a GitHub Action, and an MCP server are planned.
+
+## The name
+
+Builders hang a plumb line, a weight on a string, beside a wall to check that it's straight before they build higher. To plumb something also means to explore it to the bottom. Plumb does both.
+
+## Credits
+
+The verification method (the verify skill's five sections, the feature map, the self-proof, and the refine loop) is adapted from [pstack](https://github.com/cursor/plugins/tree/main/pstack) by Lauren Tan (MIT). See [NOTICE](NOTICE).
+
+## License
+
+MIT. See [LICENSE](LICENSE). Contributing: [CONTRIBUTING.md](CONTRIBUTING.md).
