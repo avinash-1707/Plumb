@@ -4,7 +4,7 @@
 #   - the self-proof drove a feature and its evidence survived cleanup;
 #   - nothing the run started is still running (containers, process groups);
 #   - a second /plumb-init changes no tracked file.
-# Needs Claude Code (`claude`), Docker, pnpm, and an Anthropic API key or a logged-in Claude Code.
+# Needs Claude Code (`claude`, logged in or with CLAUDE_CODE_OAUTH_TOKEN / ANTHROPIC_API_KEY set), Docker, and pnpm.
 # Usage: scripts/e2e-init.sh [work-dir]   (default: a new temp dir; kept afterwards for inspection)
 set -eu
 
