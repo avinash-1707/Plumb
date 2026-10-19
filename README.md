@@ -8,19 +8,15 @@ Plumb maps your codebase, proves changes work in the running app, and checks eve
 - **Verify.** A skill generated for your project that boots the real app, drives it the way a user does, and keeps the evidence (screenshots, ARIA snapshots, responses).
 - **Gate.** A fast pre-commit check (lint, typecheck, related tests) that never calls a model. When a coding agent commits a change to a key feature, Plumb blocks the commit until that feature has been driven live and passed.
 
-Plumb runs on your machine. It uses the agent you already run (Claude Code), so there's no extra API key, account, or hosted service.
+Plumb runs on your machine. It uses the agent you already run (Claude Code), so there's no extra API key, account, or hosted service. The model work counts against your Claude Code usage.
+
+v1 supports Node/TypeScript repositories only.
 
 ## Install
 
 You need Node 22.20 or later, git, and Claude Code. Docker is needed only if your app's services (a database, a queue) run in docker compose.
 
-1. Install the CLI. The commit hook runs it on every agent Bash call, so a global install keeps that fast:
-
-   ```sh
-   npm install -g @plumb-cli/plumb
-   ```
-
-2. Install the Claude Code plugin, in a Claude Code session:
+1. Install the Claude Code plugin, in a Claude Code session:
 
    ```
    /plugin install plumb --marketplace avinash-1707/Plumb
@@ -28,21 +24,27 @@ You need Node 22.20 or later, git, and Claude Code. Docker is needed only if you
 
    On Claude Code older than 2.1.275, run `/plugin marketplace add avinash-1707/Plumb`, then `/plugin install plumb@plumb`.
 
-3. In your repository, in Claude Code:
+2. In your repository, in Claude Code:
 
    ```
    /plumb-init
    ```
 
-`/plumb-init` takes a few minutes. It maps the repo; explores how the app builds, runs, and tests; writes `.plumb/profile.json`; asks you only for what it can't observe (an API key, an external account); proves the app boots; generates the verify skill; drives one feature end to end to prove the skill works; and installs the git hook. Then commit what it generated:
+3. Optional: `npm install -g @plumb-cli/plumb`. Without it the plugin fetches Plumb through `npx`, which is slower on the commit hook, because the hook runs on every agent Bash call.
+
+`/plumb-init` takes a few minutes and is the largest single use of model time Plumb has: it launches five explorer agents, then generates the verify skill and drives one feature to prove it works. It maps the repo; explores how the app builds, runs, and tests; writes `.plumb/profile.json`; asks you only for what it can't observe (an API key, an external account); proves the app boots; and installs the git hook. Then commit what it generated:
 
 ```sh
-git add .plumb .claude/skills .gitignore && git commit -m "Add Plumb"
+git add .plumb .claude/skills .gitignore .mcp.json && git commit -m "Add Plumb"
 ```
+
+`.mcp.json` exists only if your app has a UI and no browser harness of its own; leave it out of the command when there isn't one.
+
+`/plumb-init` (in Claude Code) is the full setup. `plumb init` (the shell command) is only its deterministic part, which the skill calls for you.
 
 ## Try it on the example
 
-`examples/node-web` is a small shop built with Next.js, Express, Prisma, and Postgres. Plumb uses it as its own integration test.
+`examples/node-web` is a small shop built with Next.js, Express, Prisma, and Postgres. Plumb uses it as its own integration test. You need Node, pnpm, git, Claude Code, and Docker (for Postgres). This is optional; to use Plumb on your own repo, `/plumb-init` is enough.
 
 **1. Copy the example into a fresh repository.**
 
@@ -80,14 +82,14 @@ Then type `/plumb-init` in the session.
 
 ## How it works
 
-| Step | What happens | Model? |
-|---|---|---|
-| Map | `plumb map` extracts components, entry points, and edges from configs, the TypeScript compiler, and dependency-cruiser. Every fact carries `file:line` evidence | No |
-| Discover | Five read-only explorer agents read the map and the code: structure, runtime, tests, frontend, risk. The CLI validates their findings and every citation | Yes |
-| Profile | The session writes `.plumb/profile.json` (install, build, checks, run targets, services). `plumb profile verify` runs every command and boots every target, then tears down everything it started | Writing it, yes. Checking it, no |
-| Verify skill | `.claude/skills/verify-<app>/`: Launch, Doctor, Drive, Evidence, Cleanup, and a feature map with one file per key feature. Plumb fills everything deterministic; the session writes the recipes; `plumb verify --validate` checks the structure | Yes |
-| Gate | `.plumb/gate.sh` is plain POSIX sh, committed, and runs without Plumb installed. A pass is stamped by the staged tree's hash, so the same content is never checked twice | No |
-| Agent hook | The plugin's PreToolUse hook sees `git commit`, runs the gate, and blocks while the staged change touches a deep-tier feature that has no passing live verification for that exact tree | No |
+| Step | What happens |
+|---|---|
+| Map | `plumb map` extracts components, entry points, and edges from configs, the TypeScript compiler, and dependency-cruiser. Every fact carries `file:line` evidence. No model |
+| Discover | Five read-only explorer agents read the map and the code: structure, runtime, tests, frontend, risk. The CLI validates their findings and every citation |
+| Profile | The session writes `.plumb/profile.json` (install, build, checks, run targets, services). `plumb profile verify` runs every command and boots every target, then tears down everything it started |
+| Verify skill | `.claude/skills/verify-<app>/`: Launch, Doctor, Drive, Evidence, Cleanup, and a feature map with one file per key feature. Plumb fills everything deterministic; the session writes the recipes; `plumb verify --validate` checks the structure |
+| Gate | `.plumb/gate.sh` is plain POSIX sh, committed, and runs without Plumb installed. A pass is stamped by the staged tree's hash, so the same content is never checked twice. No model |
+| Agent hook | The plugin's PreToolUse hook sees `git commit`, runs the gate, and blocks while the staged change touches a deep-tier feature that has no passing live verification for that exact tree. No model |
 
 Everything Plumb starts (servers, containers) runs in its own process group and is torn down by recorded id, never by process name. Evidence survives cleanup, and `plumb verify --cleanup` checks that it did.
 
@@ -98,12 +100,15 @@ In Claude Code:
 | Command | Does |
 |---|---|
 | `/plumb-init` | Full setup, as above. On a set-up repo it refreshes Plumb's generated sections instead |
-| `/plumb-verify [features]` | Drive the features the staged changes touch (or the named ones), keep the evidence, and stamp the staged tree |
-| `/plumb-pr [base]` | Verify exactly the features a branch touches and write a PR report |
-| `/plumb-refine` | Re-check every feature file against the code and the live app; ends `clean`, `changed`, or `blocked` |
+| `/plumb-verify [features]` | Drive the features the staged changes touch (or the named ones), keep the evidence, and stamp the staged tree. You run this when the gate asks for it |
 | `/plumb-status` | What Plumb has set up and what it last proved |
+| `/plumb-pr [base]` | Optional. Verify exactly the features a branch touches and write a PR report |
+| `/plumb-refine` | Optional. Re-check every feature file against the code and the live app; ends `clean`, `changed`, or `blocked` |
 
-The CLI (every command takes `--json` and `--cwd <dir>`; exit 0 ok, 1 check failed, 2 couldn't complete, 3 bad usage):
+<details>
+<summary>Shell CLI reference</summary>
+
+The skills and hooks call these; you rarely need to. Every command takes `--json` and `--cwd <dir>`; exit 0 ok, 1 check failed, 2 couldn't complete, 3 bad usage.
 
 | Command | Does |
 |---|---|
@@ -114,7 +119,10 @@ The CLI (every command takes `--json` and `--cwd <dir>`; exit 0 ok, 1 check fail
 | `plumb hooks install \| uninstall` | Chain the gate into husky, lefthook, pre-commit, `core.hooksPath`, or `.git/hooks`; uninstall restores the original byte for byte |
 | `plumb verify --plan \| --launch \| --doctor \| --cleanup \| --stamp \| --validate` | The deterministic parts of a live verification |
 | `plumb pr <base> [--run <id>]` | PR verification plan and report |
-| `plumb status`, `plumb doctor` | State of the setup; health of Plumb itself |
+| `plumb status` | State of the setup |
+| `plumb doctor` | Health of Plumb itself (Node, TypeScript, dependency-cruiser, hook). Not the same as `.plumb/bin/doctor <run-id>`, which checks a running verification instance |
+
+</details>
 
 ## Files Plumb writes
 
@@ -135,7 +143,7 @@ Plumb picks a strategy from what discovery finds: `web-app`, `api-backend`, `lib
 
 ## Status
 
-v1 supports Node/TypeScript repositories. Review agents (architecture rules, resilience, concurrency, resource leaks), a GitHub Action, and an MCP server are planned.
+Review agents (architecture rules, resilience, concurrency, resource leaks), a GitHub Action, and an MCP server are planned.
 
 ## The name
 
