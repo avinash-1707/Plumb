@@ -40,20 +40,41 @@ git add .plumb .claude/skills .gitignore && git commit -m "Add Plumb"
 
 ## Try it on the example
 
-`examples/node-web` is a small shop (Next.js, Express, Prisma, Postgres) used as Plumb's integration test:
+`examples/node-web` is a small shop built with Next.js, Express, Prisma, and Postgres. Plumb uses it as its own integration test.
+
+**1. Copy the example into a fresh repository.**
 
 ```sh
-git clone https://github.com/avinash-1707/Plumb && cp -r Plumb/examples/node-web shop && cd shop
-rm -rf .plumb-golden    # the example's test fixtures, not part of the app
-git init -q && git add -A && git commit -qm init
-pnpm install && pnpm --filter @node-web/web exec playwright install chromium
-claude    # then: /plumb-init
+git clone https://github.com/avinash-1707/Plumb
+cp -r Plumb/examples/node-web shop
+cd shop
+rm -rf .plumb-golden
 ```
 
-Then see the gate work:
+`.plumb-golden` holds Plumb's test fixtures; the shop doesn't need it.
 
-- **A human commit with a type error is blocked.** Break a type in `apps/api/src/pricing.ts`, `git add` it, and `git commit`: the hook prints which check failed, the log, and the error lines.
-- **An agent commit to a key feature is blocked until it's proven.** Ask Claude to change the order flow and commit. The commit is refused with "Run /plumb-verify <feature>, then commit again". `/plumb-verify` boots the app on its own ports, drives the feature, saves the evidence, and stamps that exact staged content, after which the same commit goes through.
+**2. Commit it, then install dependencies and the browser.**
+
+```sh
+git init -q
+git add -A
+git commit -qm init
+pnpm install
+pnpm --filter @node-web/web exec playwright install chromium
+```
+
+**3. Run the setup in Claude Code.**
+
+```sh
+claude
+```
+
+Then type `/plumb-init` in the session.
+
+**4. Watch the gate work.**
+
+- **A human commit with a type error is blocked.** Break a type in `apps/api/src/pricing.ts`, stage it, and commit. The hook names the failed check, the log, and the error lines.
+- **An agent commit to a key feature waits for proof.** Ask Claude to change the order flow and commit. Plumb refuses with "Run /plumb-verify <feature>, then commit again". `/plumb-verify` boots the app on its own ports, drives the feature, and saves the evidence. Then the same commit goes through.
 
 ## How it works
 
