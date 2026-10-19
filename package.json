@@ -1,8 +1,26 @@
 {
   "name": "@plumb-cli/plumb",
-  "version": "0.0.0",
-  "description": "Maps your codebase, runs your app to prove changes work, and gates commits and pull requests.",
+  "version": "0.1.0",
+  "description": "Maps your codebase, proves changes work in the running app, and gates every commit.",
   "license": "MIT",
+  "author": {
+    "name": "Avinash",
+    "url": "https://avnsh.me"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/avinash-1707/Plumb.git"
+  },
+  "homepage": "https://github.com/avinash-1707/Plumb#readme",
+  "bugs": "https://github.com/avinash-1707/Plumb/issues",
+  "keywords": [
+    "claude-code",
+    "verification",
+    "repo-map",
+    "pre-commit",
+    "git-hooks",
+    "e2e"
+  ],
   "type": "module",
   "bin": {
     "plumb": "dist/cli.js"

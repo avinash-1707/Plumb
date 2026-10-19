@@ -1,8 +1,12 @@
 #!/bin/sh
-# Puts `plumb` on the Bash tool's PATH while the plugin is enabled.
-# In a Plumb checkout, run that checkout's CLI (source first, so it can't be stale); otherwise the published package.
+# plumb-plugin-shim
+# Puts `plumb` on the Bash tool's PATH while the plugin is enabled. In order:
+#  1. In a Plumb checkout, that checkout's CLI (source first, so it can't be stale).
+#  2. A `plumb` installed on PATH (npm i -g @plumb-cli/plumb): fast, which matters because the commit hook runs on
+#     every Bash call.
+#  3. The published package at this plugin's version, through npx.
 set -eu
-here=$(cd "$(dirname "$0")" && pwd)
+here=$(cd "$(dirname "$0")" && pwd -P)
 repo="$here/../.."
 if [ -f "$repo/src/cli.ts" ]; then
   exec node "$repo/src/cli.ts" "$@"
@@ -10,4 +14,14 @@ fi
 if [ -f "$repo/dist/cli.js" ]; then
   exec node "$repo/dist/cli.js" "$@"
 fi
-exec npx -y @plumb-cli/plumb "$@"
+# Any shim (this one, or another plugin version's) is skipped, so two shims never call each other.
+old_ifs=$IFS
+IFS=:
+for dir in $PATH; do
+  [ -n "$dir" ] && [ -f "$dir/plumb" ] && [ -x "$dir/plumb" ] || continue
+  grep -q '^# plumb-plugin-shim$' "$dir/plumb" 2>/dev/null && continue
+  IFS=$old_ifs
+  exec "$dir/plumb" "$@"
+done
+IFS=$old_ifs
+exec npx -y @plumb-cli/plumb@0.1.0 "$@"

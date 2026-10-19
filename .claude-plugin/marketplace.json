@@ -1,0 +1,12 @@
+{
+  "name": "plumb",
+  "description": "Plumb: map the repo, prove changes in the running app, gate every commit.",
+  "owner": { "name": "Avinash", "url": "https://avnsh.me" },
+  "plugins": [
+    {
+      "name": "plumb",
+      "source": "./plugin",
+      "description": "Maps your codebase, proves changes work in the running app, and gates commits and pull requests."
+    }
+  ]
+}

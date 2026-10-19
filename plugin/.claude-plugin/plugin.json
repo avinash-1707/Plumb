@@ -1,10 +1,18 @@
 {
   "name": "plumb",
   "displayName": "Plumb",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Maps your codebase, proves changes work in the running app, and gates commits and pull requests.",
-  "author": { "name": "Avinash", "url": "https://avnsh.me" },
+  "author": {
+    "name": "Avinash",
+    "url": "https://avnsh.me"
+  },
   "repository": "https://github.com/avinash-1707/Plumb",
   "license": "MIT",
-  "keywords": ["verification", "repo-map", "pre-commit", "review"]
+  "keywords": [
+    "verification",
+    "repo-map",
+    "pre-commit",
+    "review"
+  ]
 }
