@@ -27,6 +27,7 @@ Run the CLI from source with `node src/cli.ts <command>` (Node strips the types)
 - `test/` holds unit and integration tests (Vitest). Tests that start processes must leave nothing running; they create throwaway git repositories under the OS temp dir.
 - `examples/node-web` is the integration target. Its golden map in `examples/node-web/.plumb-golden/map/` is the extractors' reliability check: an extractor change must keep `test/map-golden.test.ts` passing, or update the golden files deliberately after reviewing the diff line by line.
 - `scripts/e2e-init.sh` runs the full `/plumb-init` headlessly against a fresh copy of the example and checks the result: skill valid, evidence kept, nothing left running, and a second init changes nothing. It needs a logged-in Claude Code and Docker, and uses a few dollars of model usage, so run it by hand before a release, not on every change.
+- `node scripts/trial.ts [--init] [name...]` runs Plumb against the external repositories pinned in `scripts/trial-repos.json` and prints a results table. Without `--init` it needs no model and runs none of the repos' code (installs skip lifecycle scripts): map build, determinism, `map --check`, and impact on a probe edit. `--init` adds a headless `/plumb-init` per repo (`PLUMB_TRIAL_BUDGET_USD` each, default 5), which runs the repos' own builds and servers, so use a machine you don't mind.
 
 ## Commits
 
