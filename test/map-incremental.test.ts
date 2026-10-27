@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { beforeAll, describe, expect, it } from "vitest";
 import { main } from "../src/main.ts";
@@ -247,5 +247,35 @@ describe("fact cache soundness", () => {
     expect(await run("map", "--update")).toBe(0);
     expect(loadMap(dir).manifest.extractorFailures).toEqual([]);
     expect(await run("map", "--check")).toBe(0);
+  });
+});
+
+describe("workspace packages whose exports point at unbuilt output", () => {
+  it("resolves both `types`-first orders to the tracked source", async () => {
+    const dir = makeProject({
+      "package.json": JSON.stringify({ name: "fixture", private: true }),
+      "pnpm-workspace.yaml": "packages:\n  - apps/*\n  - packages/*\n",
+      ".gitignore": "node_modules/\ndist/\n",
+      // Turborepo internal package (create-t3-turbo): types at a dist/ that only exists after a build, code at src/.
+      "packages/db/package.json": JSON.stringify({ name: "@acme/db", exports: { ".": { types: "./dist/index.d.ts", default: "./src/index.ts" } } }),
+      "packages/db/src/index.ts": "export const db = 1;",
+      // Turborepo compiled package: types at src/, code at a dist/ that only exists after a build.
+      "packages/ui/package.json": JSON.stringify({ name: "@acme/ui", exports: { ".": { types: "./src/index.ts", default: "./dist/index.js" } } }),
+      "packages/ui/src/index.ts": "export const ui = 1;",
+      // Nothing tracked to fall back to: must still be reported.
+      "packages/built/package.json": JSON.stringify({ name: "@acme/built", exports: { ".": { types: "./dist/index.d.ts", default: "./dist/index.js" } } }),
+      "packages/built/src/index.ts": "export const built = 1;",
+      "apps/app/package.json": JSON.stringify({ name: "app", dependencies: { "@acme/db": "workspace:*", "@acme/ui": "workspace:*", "@acme/built": "workspace:*" } }),
+      "apps/app/src/main.ts": 'import { db } from "@acme/db";\nimport { ui } from "@acme/ui";\nexport const both = db + ui;',
+      "apps/app/src/other.ts": 'import { built } from "@acme/built";\nexport const b = built;',
+    });
+    // What pnpm install links; gitignored, like the real thing.
+    mkdirSync(path.join(dir, "apps/app/node_modules/@acme"), { recursive: true });
+    for (const pkg of ["db", "ui", "built"]) symlinkSync(`../../../../packages/${pkg}`, path.join(dir, "apps/app/node_modules/@acme", pkg));
+
+    const { map } = await buildMap({ root: dir, cache: "off" });
+    expect(map.manifest.extractorFailures.map((f) => f.reason)).toEqual(['could not resolve "@acme/built" imported from apps/app/src/other.ts']);
+    const app = map.components.find((c) => c.root === "apps/app");
+    expect(app?.edges.filter((e) => e.kind === "imports").map((e) => e.to).sort()).toEqual(["component:db", "component:ui"]);
   });
 });

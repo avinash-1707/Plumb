@@ -27,6 +27,17 @@ const CRUISE_OPTIONS: ICruiseOptions = {
   },
 };
 
+/**
+ * enhanced-resolve takes the first `exports` condition that matches, in the package's own key order, and doesn't move
+ * on when that file is missing. So `{ types: "./dist/x.d.ts", default: "./src/x.ts" }` fails until a build creates
+ * dist/, while `{ types: "./src/x.ts", default: "./dist/x.js" }` needs `types`. A cruise with workspace packages left
+ * unresolved is repeated without `types`, and that resolution is used for those imports only.
+ */
+const WITHOUT_TYPES: ICruiseOptions = {
+  ...CRUISE_OPTIONS,
+  enhancedResolveOptions: { ...CRUISE_OPTIONS.enhancedResolveOptions, conditionNames: ["import", "require", "node", "default"] },
+};
+
 let cruiserVersion: string | undefined;
 
 /** dependency-cruiser's own version, read from its package.json (it exports none). */
@@ -223,19 +234,31 @@ async function cruiseUncached(
   const workspacePackages = ctx.components.flatMap((c) => (c.packageJson?.name === undefined ? [] : [c.packageJson.name]));
 
   const componentDir = path.resolve(ctx.root, component.root);
-  const result = await withCwd(tsconfig === null ? componentDir : path.dirname(tsconfig), () =>
-    cruise(
-      codeFiles.map((f) => f.slice(prefix.length)),
-      { ...CRUISE_OPTIONS, baseDir: componentDir, ...(tsconfig === null ? {} : { tsConfig: { fileName: tsconfig } }) },
-      undefined,
-      parsedTsConfig === undefined ? undefined : { tsConfig: parsedTsConfig },
-    ),
-  );
-  const output = result.output as ICruiseResult;
+  const cruiseWith = async (options: ICruiseOptions): Promise<ICruiseResult> => {
+    const result = await withCwd(tsconfig === null ? componentDir : path.dirname(tsconfig), () =>
+      cruise(
+        codeFiles.map((f) => f.slice(prefix.length)),
+        { ...options, baseDir: componentDir, ...(tsconfig === null ? {} : { tsConfig: { fileName: tsconfig } }) },
+        undefined,
+        parsedTsConfig === undefined ? undefined : { tsConfig: parsedTsConfig },
+      ),
+    );
+    return result.output as ICruiseResult;
+  };
+  const output = await cruiseWith(CRUISE_OPTIONS);
 
   const transpilerIssues = (output.summary.environment.issues ?? []).filter((i) => i.name.startsWith("missing-"));
   if (transpilerIssues.length > 0) return { edges: [], failures: [`dependency-cruiser reported ${transpilerIssues.map((i) => i.name).join(", ")}`] };
   if (output.summary.totalCruised === 0) return { edges: [], failures: [`dependency-cruiser cruised 0 modules out of ${String(codeFiles.length)} source files`] };
+
+  // Only a package's exports depend on conditions: a relative or alias miss (an ungenerated file) would fail again.
+  const unresolvedPackage = output.modules.some((mod) => mod.dependencies.some((dep) => dep.couldNotResolve && workspacePackages.some((p) => dep.module === p || dep.module.startsWith(`${p}/`))));
+  const retried = new Map<string, string>();
+  if (unresolvedPackage) {
+    for (const mod of (await cruiseWith(WITHOUT_TYPES)).modules) {
+      for (const dep of mod.dependencies) if (!dep.couldNotResolve) retried.set(`${mod.source}\0${dep.module}`, dep.resolved);
+    }
+  }
 
   const evidenceByTarget = new Map<NodeId, Loc[]>();
   for (const mod of output.modules) {
@@ -245,13 +268,14 @@ async function cruiseUncached(
     if (!isCodeFile(sourceFile) || ctx.componentOf(sourceFile)?.id !== component.id) continue;
     for (const dep of mod.dependencies) {
       if (dep.coreModule) continue;
-      if (dep.couldNotResolve) {
+      const resolved = dep.couldNotResolve ? retried.get(`${mod.source}\0${dep.module}`) : dep.resolved;
+      if (resolved === undefined) {
         if (isLocalSpecifier(dep.module, workspacePackages, aliasPrefixes)) {
           failures.push(`could not resolve "${dep.module}" imported from ${sourceFile}`);
         }
         continue;
       }
-      const target = path.posix.normalize(prefix + dep.resolved);
+      const target = path.posix.normalize(prefix + resolved);
       if (target.startsWith("node_modules/") || target.includes("/node_modules/")) continue;
       if (target.startsWith("../")) {
         failures.push(`"${dep.module}" imported from ${sourceFile} resolves outside the project`);
