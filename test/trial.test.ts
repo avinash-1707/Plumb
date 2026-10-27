@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { installCommand } from "../scripts/trial.ts";
+import { installCommand, pickProbe } from "../scripts/trial.ts";
 
 const files = (contents: Record<string, string>) => (f: string) => contents[f] ?? null;
 const present = (...names: string[]) => files(Object.fromEntries(names.map((n) => [n, ""])));
@@ -28,5 +28,17 @@ describe("trial install command", () => {
   it("refuses yarn berry setups that would run code committed in the repo", () => {
     expect(installCommand("yarn@4.1.0", files({ ".yarnrc.yml": "yarnPath: .yarn/releases/yarn-4.1.0.cjs\n" }))).toHaveProperty("refused");
     expect(installCommand("yarn@4.1.0", files({ ".yarnrc.yml": "plugins:\n  - path: .yarn/plugins/x.cjs\n" }))).toHaveProperty("refused");
+  });
+});
+
+describe("trial probe file", () => {
+  it("skips config files, dotfiles, and build output in favour of real source", () => {
+    expect(pickProbe([], [".prettierrc.js", ".eslintrc.cjs", "dist/app.controller.js", "examples/a.js", "tests/a.test.ts", "vite.config.ts", "src/app.ts"])).toBe("src/app.ts");
+  });
+
+  it("prefers a source entry point, and falls back to any code file when nothing else is left", () => {
+    expect(pickProbe(["app/routes/index.tsx"], ["app/a.ts"])).toBe("app/routes/index.tsx");
+    expect(pickProbe([], [".prettierrc.js", "README.md"])).toBe(".prettierrc.js");
+    expect(pickProbe([], ["README.md"])).toBeNull();
   });
 });

@@ -66,6 +66,8 @@ interface Result {
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const cli = path.join(root, "src/cli.ts");
 const codeFile = /\.(?:[cm]?[jt]s|[jt]sx)$/;
+// Config files, dotfiles, examples, tests, and committed build output say nothing about impact on real source.
+const notSource = /(?:^|\/)(?:\.[^/]*|dist|build|out|coverage|examples?|tests?|__tests__)(?:\/|$)|(?:^|\/)[^/]*\.config\.[^/]+$/;
 const budget = process.env.PLUMB_TRIAL_BUDGET_USD ?? "5";
 const initTools = ["Bash(plumb *)", "Bash(.plumb/bin/doctor *)", "Bash(curl *)", "Bash(node *)", "Read", "Glob", "Grep", "Write", "Edit", "Agent"];
 
@@ -215,16 +217,23 @@ function initTrial(dir: string, work: string, name: string, probe: string): NonN
   };
 }
 
-/** A code file to edit for the impact probe: the first entry point's file, else the first code file in the map. */
+/** The file to edit for the impact probe: the first source entry point, else the first source file, else any code file. */
+export function pickProbe(entryFiles: string[], files: string[]): string | null {
+  const code = (list: string[]): string[] => list.filter((f) => codeFile.test(f)).sort();
+  const source = (list: string[]): string[] => code(list).filter((f) => !notSource.test(f));
+  return [...source(entryFiles), ...source(files), ...code(files)][0] ?? null;
+}
+
 function probeFile(dir: string): string | null {
   const componentsDir = path.join(dir, ".plumb/map/components");
   const components = readdirSync(componentsDir)
     .filter((f) => f.endsWith(".json"))
     .sort()
     .map((f) => JSON.parse(readFileSync(path.join(componentsDir, f), "utf8")) as { entryPoints: { location?: { file: string } }[]; files: Record<string, string> });
-  const entries = components.flatMap((c) => c.entryPoints.map((e) => e.location?.file ?? "")).filter((f) => codeFile.test(f));
-  const files = components.flatMap((c) => Object.keys(c.files)).filter((f) => codeFile.test(f));
-  return [...entries.sort(), ...files.sort()][0] ?? null;
+  return pickProbe(
+    components.flatMap((c) => c.entryPoints.map((e) => e.location?.file ?? "")),
+    components.flatMap((c) => Object.keys(c.files)),
+  );
 }
 
 function blank(t: Trial): Result {
@@ -298,6 +307,16 @@ function trial(t: Trial, work: string, withInit: boolean): Result {
   return result;
 }
 
+/** One entry per extractor: how many failures, in which components. */
+function failureSummary(failures: MapCounts["extractorFailures"]): string {
+  const byExtractor = new Map<string, string[]>();
+  for (const f of failures) byExtractor.set(f.extractor, [...(byExtractor.get(f.extractor) ?? []), f.component.replace(/^component:/, "")]);
+  if (byExtractor.size === 0) return "none";
+  return [...byExtractor]
+    .map(([extractor, components]) => `${extractor} ×${String(components.length)} (${[...new Set(components)].sort().join(", ")})`)
+    .join("; ");
+}
+
 function table(results: Result[]): string {
   const yes = (v: boolean | null): string => (v === null ? "–" : v ? "yes" : "**no**");
   const check = (exit: number | null): string => (exit === null ? "–" : exit === 0 ? "fresh" : exit === 1 ? "**stale**" : exit === 2 ? "n/a (extractors)" : `**exit ${String(exit)}**`);
@@ -305,7 +324,7 @@ function table(results: Result[]): string {
   const rows = results.map((r) => {
     const m = r.map;
     const shape = m === null ? "–" : `${String(m.components)} / ${String(m.entryPoints)} / ${String(m.edges)} / ${String(m.resources)} / ${String(m.unassignedFiles)}`;
-    const failures = m === null ? "–" : m.extractorFailures.map((f) => `${f.extractor} (${f.component})`).join(", ") || "none";
+    const failures = m === null ? "–" : failureSummary(m.extractorFailures);
     const install = r.install === null ? "–" : r.install.ok ? `ok ${String(r.install.seconds)}s` : "**failed**";
     const probe = r.probe === null ? "–" : `${secs(r.probe.impact)} (${String(r.probe.impact.components ?? "?")} comp.) / ${secs(r.probe.update)}`;
     const i = r.init;
