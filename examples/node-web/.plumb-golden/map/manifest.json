@@ -14,8 +14,10 @@
     "env": "1",
     "express-routes": "1",
     "fetch-calls": "1",
+    "nest-routes": "1",
     "next-routes": "1",
     "prisma-schema": "1",
+    "remix-routes": "1",
     "shared-state": "1",
     "workspace": "1"
   },

@@ -5,8 +5,10 @@ import { drizzleSchema } from "./drizzle-schema.ts";
 import { env } from "./env.ts";
 import { expressRoutes } from "./express-routes.ts";
 import { fetchCalls } from "./fetch-calls.ts";
+import { nestRoutes } from "./nest-routes.ts";
 import { nextRoutes } from "./next-routes.ts";
 import { prismaSchema } from "./prisma-schema.ts";
+import { remixRoutes } from "./remix-routes.ts";
 import { sharedState } from "./shared-state.ts";
 import type { Extractor } from "./types.ts";
 import { workspace } from "./workspace.ts";
@@ -23,6 +25,8 @@ export const EXTRACTORS: readonly Extractor[] = [
   env,
   nextRoutes,
   expressRoutes,
+  nestRoutes,
+  remixRoutes,
   depcruiseImports,
   dbAccess,
   fetchCalls,

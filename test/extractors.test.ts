@@ -5,8 +5,10 @@ import { dbCandidates, drizzleAccesses, prismaAccesses } from "../src/extractors
 import { envReads } from "../src/extractors/env.ts";
 import { expressEntries, fileRoutes, joinRoutePath } from "../src/extractors/express-routes.ts";
 import { matchRoute, urlPattern } from "../src/extractors/fetch-calls.ts";
+import { fileNest } from "../src/extractors/nest-routes.ts";
 import { appRoute, exportedHttpMethods, pagesRoute } from "../src/extractors/next-routes.ts";
 import { parsePrismaModels } from "../src/extractors/prisma-schema.ts";
+import { remixConfig, remixRoute, routeModuleExports } from "../src/extractors/remix-routes.ts";
 import { moduleState } from "../src/extractors/shared-state.ts";
 import { SourceCache } from "../src/extractors/source.ts";
 import { matchGlob } from "../src/glob.ts";
@@ -160,6 +162,176 @@ describe("Express routes", () => {
   it("joins paths without doubled or trailing slashes", () => {
     expect(joinRoutePath("/api/", "/")).toBe("/api");
     expect(joinRoutePath("", "/x/")).toBe("/x");
+  });
+});
+
+describe("NestJS routes", () => {
+  it("joins controller and method paths in every literal form, only for @nestjs/common decorators", () => {
+    const sf = parse(
+      [
+        'import { Controller, Get, Post, Delete as Del } from "@nestjs/common";',
+        'import { Get as OtherGet } from "./not-nest";',
+        '@Controller("articles")',
+        "export class ArticleController {",
+        "  @Get() list() {}",
+        '  @Get(":slug/comments") comments() {}',
+        '  @Post(["a", "b"]) many() {}',
+        '  @Del(":slug") remove() {}',
+        '  @OtherGet("ignored") notNest() {}',
+        "}",
+        '@Controller({ path: "/tags/", host: "x" })',
+        'export class TagController { @Get("/") all() {} }',
+        "@Controller()",
+        'export class AppController { @Get() root() {} }',
+      ].join("\n"),
+    );
+    const facts = fileNest(sf);
+    expect(facts.unresolved).toEqual([]);
+    expect(facts.routes.map((r) => `${r.method} ${r.path} :${String(r.loc.line)}`)).toEqual([
+      "GET /articles :5",
+      "GET /articles/:slug/comments :6",
+      "POST /articles/a :7",
+      "POST /articles/b :7",
+      "DELETE /articles/:slug :8",
+      "GET /tags :12",
+      "GET / :14",
+    ]);
+  });
+
+  it("reports paths and settings it can't model instead of guessing", () => {
+    const sf = parse(
+      [
+        'import { Controller, Get } from "@nestjs/common";',
+        'import { RouterModule } from "@nestjs/core";',
+        "@Controller(BASE)",
+        "export class A { @Get(path) x() {} }",
+        'app.setGlobalPrefix("api", { exclude: ["health"] });',
+        "app.setGlobalPrefix(prefix);",
+        "app.enableVersioning();",
+        "RouterModule.register([]);",
+      ].join("\n"),
+    );
+    const facts = fileNest(sf);
+    expect(facts.unresolved.map((u) => u.loc.line)).toEqual([3, 4, 7, 8]);
+    expect(facts.prefixes).toEqual([
+      { value: "api", loc: { file: "src/x.ts", line: 5 }, options: true },
+      { value: null, loc: { file: "src/x.ts", line: 6 }, options: false },
+    ]);
+  });
+
+  it("reports inherited routes and composed route decorators", () => {
+    const sf = parse(
+      [
+        'import { Controller, Get, applyDecorators } from "@nestjs/common";',
+        '@Controller("users")',
+        "export class UsersController extends CrudController {}",
+        'export const ApiGet = (p: string) => applyDecorators(Get(p), ApiOkResponse());',
+      ].join("\n"),
+    );
+    expect(fileNest(sf).unresolved.map((u) => [u.loc.line, u.what])).toEqual([
+      [2, "a controller that extends another class, whose inherited routes aren't read"],
+      [4, "a composed route decorator (applyDecorators), whose routes aren't read"],
+    ]);
+  });
+
+  it("applies no prefix when the component boots more than one app", async () => {
+    const root = makeProject({
+      "package.json": JSON.stringify({ name: "mono", dependencies: { "@nestjs/core": "10", "@nestjs/common": "10" } }),
+      "apps/api/main.ts": 'import { NestFactory } from "@nestjs/core";\nconst app = await NestFactory.create(A);\napp.setGlobalPrefix("api");',
+      "apps/admin/main.ts": 'import { NestFactory } from "@nestjs/core";\nconst app = await NestFactory.create(B);',
+      "apps/admin/x.controller.ts": 'import { Controller, Get } from "@nestjs/common";\n@Controller("x")\nexport class X { @Get() list() {} }',
+    });
+    const { map } = await buildMap({ root, cache: "off" });
+    expect(map.components[0]?.entryPoints.map((e) => e.id)).toEqual(["entry:http:GET /x"]);
+    expect(map.manifest.extractorFailures.filter((f) => f.extractor === "nest-routes").map((f) => f.reason)).toEqual([
+      "a global prefix with more than one app (apps/admin/main.ts:2, apps/api/main.ts:2); routes use none",
+    ]);
+  });
+
+  it("puts every route of a component under its global prefix", async () => {
+    const root = makeProject({
+      "package.json": JSON.stringify({ name: "api", dependencies: { "@nestjs/core": "10", "@nestjs/common": "10" } }),
+      "src/main.ts": 'const app = await NestFactory.create(AppModule);\napp.setGlobalPrefix("api");',
+      "src/user.controller.ts": 'import { Controller, Put } from "@nestjs/common";\n@Controller()\nexport class U { @Put("user") update() {} }',
+    });
+    const { map } = await buildMap({ root, cache: "off" });
+    expect(map.components[0]?.entryPoints.map((e) => e.id)).toEqual(["entry:http:PUT /api/user"]);
+    expect(map.manifest.extractorFailures.filter((f) => f.extractor === "nest-routes")).toEqual([]);
+  });
+});
+
+describe("Remix routes", () => {
+  it("maps flat-route names to URLs", () => {
+    expect(remixRoute("_index")).toEqual({ url: "/" });
+    expect(remixRoute("notes._index")).toEqual({ url: "/notes" });
+    expect(remixRoute("notes.$noteId")).toEqual({ url: "/notes/:noteId" });
+    expect(remixRoute("_auth.login")).toEqual({ url: "/login" });
+    expect(remixRoute("notes_.$id.edit")).toEqual({ url: "/notes/:id/edit" });
+    expect(remixRoute("files.$")).toEqual({ url: "/files/[...splat]" });
+    expect(remixRoute("[sitemap.xml]")).toEqual({ url: "/sitemap.xml" });
+    expect(remixRoute("($lang).about")).toEqual({ optional: true });
+  });
+
+  it("gives a pathless layout no URL of its own", () => {
+    expect(remixRoute("_auth")).toEqual({ layout: true });
+    expect(remixRoute("notes._layout")).toEqual({ layout: true });
+  });
+
+  it("reads literal ignoredRouteFiles and flags manual routes", () => {
+    const config = remixConfig(parse('export default {\n  ignoredRouteFiles: ["**/.*", "**/*.test.{ts,tsx}"],\n  routes(defineRoutes) { return {}; },\n};', "remix.config.js"));
+    expect(config).toEqual({ ignored: ["**/.*", "**/*.test.{ts,tsx}"], unreadable: [{ line: 3, what: "manual routes()" }] });
+    // A vite.config without the Remix plugin isn't Remix's to configure.
+    expect(remixConfig(parse("export default { routes: [] };", "vite.config.ts"))).toEqual({ ignored: [], unreadable: [] });
+  });
+
+  it("finds the default export, loader, and action in every export form", () => {
+    const page = routeModuleExports(parse(["export const loader = async () => {};", "export async function action() {}", "export default function Page() {}"].join("\n")));
+    expect(page).toEqual({ component: true, loader: 1, action: 2 });
+    const resource = routeModuleExports(parse(['export { handler as loader } from "./x";', "export const meta = {};"].join("\n")));
+    expect(resource).toEqual({ component: false, loader: 1, action: null });
+  });
+
+  it("makes pages UI routes, resource loaders GET, actions POST, and skips colocated modules", async () => {
+    const root = makeProject({
+      "package.json": JSON.stringify({ name: "web", dependencies: { "@remix-run/react": "2" } }),
+      "app/routes/_index.tsx": "export default function Home() {}",
+      "app/routes/notes.$noteId.tsx": "export const loader = () => null;\nexport const action = () => null;\nexport default function Note() {}",
+      "app/routes/healthcheck.tsx": "export const loader = () => new Response();",
+      "app/routes/settings/route.tsx": "export default function Settings() {}",
+      "app/routes/settings/form.tsx": "export default function Form() {}",
+      "app/routes/billing/index.tsx": "export default function Billing() {}",
+      "app/routes/_auth.tsx": "export const action = () => null;\nexport default function AuthLayout() {}",
+      "app/routes/_auth.login.tsx": "export default function Login() {}",
+      "app/routes/notes.test.tsx": "export default function NotARoute() {}",
+      "app/routes/($lang).about.tsx": "export default function About() {}",
+      "remix.config.js": 'export default { ignoredRouteFiles: ["**/*.test.{ts,tsx}"] };',
+    });
+    const { map } = await buildMap({ root, cache: "off" });
+    expect(map.components[0]?.entryPoints.map((e) => e.id).sort()).toEqual([
+      "entry:http:GET /healthcheck",
+      "entry:http:POST /notes/:noteId",
+      "entry:ui:/",
+      "entry:ui:/billing",
+      "entry:ui:/login",
+      "entry:ui:/notes/:noteId",
+      "entry:ui:/settings",
+    ]);
+    // The pathless layout sorts before _index but must not take over "/".
+    expect(map.components[0]?.entryPoints.find((e) => e.id === "entry:ui:/")?.location.file).toBe("app/routes/_index.tsx");
+    expect(map.manifest.extractorFailures.filter((f) => f.extractor === "remix-routes").map((f) => f.reason)).toEqual([
+      "app/routes/($lang).about.tsx: optional segments aren't modelled; its route is not in the map",
+    ]);
+  });
+});
+
+describe("Remix route conventions", () => {
+  it("reports Remix 1 and other conventions instead of mapping their files as flat routes", async () => {
+    for (const deps of [{ "@remix-run/react": "1.19.3", "@remix-run/dev": "^1.19.3" }, { "@remix-run/react": "2", "remix-flat-routes": "0.6" }]) {
+      const root = makeProject({ "package.json": JSON.stringify({ name: "web", dependencies: deps }), "app/routes/index.tsx": "export default function Home() {}" });
+      const { map } = await buildMap({ root, cache: "off" });
+      expect(map.components[0]?.entryPoints).toEqual([]);
+      expect(map.manifest.extractorFailures.map((f) => f.extractor)).toContain("remix-routes");
+    }
   });
 });
 
