@@ -12,7 +12,7 @@ import { assignFiles } from "./assign.ts";
 import { componentFileName } from "./ids.ts";
 import { type CacheMode, createFactCache } from "./cache.ts";
 import { compareLocs, compareStrings, factsVersions, normalizeMap, provenanceKey, serializeJson } from "./serialize.ts";
-import { checkSummary } from "./summary.ts";
+import { checkSummary, unmentionedSurface } from "./summary.ts";
 import type { Component, Edge, EntryPoint, ExtractorFailure, NodeId, RepoMap, Resource, SharedState } from "./types.ts";
 import ts from "typescript";
 import { readVersion } from "../version.ts";
@@ -180,8 +180,12 @@ export async function buildMap(options: BuildOptions): Promise<BuildResult> {
   const versions = factsVersions(assembled);
   const summaryIssues: BuildResult["summaryIssues"] = [];
   const built: Component[] = assembled.map((component) => {
-    const check = checkSummary(readSummary(root, component.id), component.id, versions.get(component.id) ?? "");
-    if (check.issues.length > 0) summaryIssues.push({ component: component.id, issues: check.issues });
+    const markdown = readSummary(root, component.id);
+    const check = checkSummary(markdown, component.id, versions.get(component.id) ?? "");
+    const unmentioned = unmentionedSurface(markdown, { exports: component.exports, entryPoints: component.entryPoints.map((e) => e.id) });
+    const shown = unmentioned.slice(0, 5).join(", ") + (unmentioned.length > 5 ? `, +${String(unmentioned.length - 5)} more` : "");
+    const issues = [...check.issues, ...(unmentioned.length > 0 ? [`"Public surface" doesn't mention ${shown}`] : [])];
+    if (issues.length > 0) summaryIssues.push({ component: component.id, issues });
     return { ...component, summaryStatus: check.status };
   });
 
