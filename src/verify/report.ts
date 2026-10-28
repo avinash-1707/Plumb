@@ -86,11 +86,32 @@ export interface StampCheck {
  * deep feature the staged diff touches has at least one verified sub-feature (unreachable alone isn't proof).
  */
 export function checkStamp(root: string, runId: string, tree: string, features: FeatureIndex, touchedDeep: readonly string[], treeLabel = "the staged tree"): StampCheck {
+  const run = checkRun(root, runId);
+  if (run.report === null) return { ok: false, issues: run.issues, tree, verified: [] };
+  const { report, launched } = run;
+  const issues = [...run.issues];
+  if (launched !== null && launched !== tree) issues.push(`the run drove tree ${launched}, but ${treeLabel} is ${tree}; the content changed after the drive, so verify again`);
+  const known = new Set(features.features.map((f) => f.id));
+  for (const f of report.features) if (!known.has(f.id)) issues.push(`feature "${f.id}" is not in .plumb/features.json`);
+  for (const f of report.features) {
+    for (const s of f.subFeatures) if (s.status === "failed") issues.push(`${f.id}/${s.id} failed: ${s.observed}`);
+  }
+  const verified = report.features.filter((f) => f.subFeatures.some((s) => s.status === "verified")).map((f) => f.id);
+  for (const id of touchedDeep) if (!verified.includes(id)) issues.push(`the changes touch deep feature "${id}", which this run didn't verify`);
+  return { ok: issues.length === 0, issues, tree, verified, report };
+}
+
+/**
+ * The run-level checks every use of a run's evidence shares (stamp, sync): a schema-valid report.json for this run
+ * id, report.md, every listed artifact, a run Plumb launched and cleaned up, and a report naming the tree Plumb
+ * recorded at launch. `launched` is that tree; `report` is null when report.json can't be read at all.
+ */
+export function checkRun(root: string, runId: string): { issues: string[]; report: VerifyReport | null; launched: string | null } {
   const issues: string[] = [];
   const dir = runDir(runId);
   const read = readReport(root, runId);
-  if (read === null) return { ok: false, issues: [`${dir}/report.json doesn't exist`], tree, verified: [] };
-  if (!read.ok) return { ok: false, issues: read.issues, tree, verified: [] };
+  if (read === null) return { issues: [`${dir}/report.json doesn't exist`], report: null, launched: null };
+  if (!read.ok) return { issues: read.issues, report: null, launched: null };
   const report = read.report;
   if (report.runId !== runId) issues.push(`report.json runId is "${report.runId}", not "${runId}"`);
   if (!existsSync(path.join(root, dir, "report.md"))) issues.push(`${dir}/report.md doesn't exist`);
@@ -106,15 +127,7 @@ export function checkStamp(root: string, runId: string, tree: string, features: 
     if (state.cleanedUpAt == null) issues.push(`run ${runId} is still running; run plumb verify --cleanup ${runId} first`);
     if (report.tree !== launched) issues.push(`report.json names tree ${report.tree}, but the run was launched on ${launched ?? "an unrecorded tree"}`);
   }
-  if (launched !== null && launched !== tree) issues.push(`the run drove tree ${launched}, but ${treeLabel} is ${tree}; the content changed after the drive, so verify again`);
-  const known = new Set(features.features.map((f) => f.id));
-  for (const f of report.features) if (!known.has(f.id)) issues.push(`feature "${f.id}" is not in .plumb/features.json`);
-  for (const f of report.features) {
-    for (const s of f.subFeatures) if (s.status === "failed") issues.push(`${f.id}/${s.id} failed: ${s.observed}`);
-  }
-  const verified = report.features.filter((f) => f.subFeatures.some((s) => s.status === "verified")).map((f) => f.id);
-  for (const id of touchedDeep) if (!verified.includes(id)) issues.push(`the changes touch deep feature "${id}", which this run didn't verify`);
-  return { ok: issues.length === 0, issues, tree, verified, report };
+  return { issues, report, launched };
 }
 
 /** Writes .plumb/stamps/deep-<tree> pointing at the evidence report (doc 6). */

@@ -19,7 +19,12 @@
         "paths": { "description": "Globs of code that implements the feature.", "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
         "components": { "type": "array", "items": { "type": "string", "pattern": "^component:.+$" } },
         "entryPoints": { "type": "array", "items": { "type": "string", "pattern": "^entry:.+$" } },
-        "tier": { "description": "deep requires a live drive when touched.", "enum": ["fast-only", "deep"] }
+        "tier": { "description": "deep requires a live drive when touched.", "enum": ["fast-only", "deep"] },
+        "syncedAt": {
+          "description": "Commit at which a live run last confirmed this feature's recipe; written by plumb verify --sync. Code under paths changed since then makes the feature stale.",
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}([0-9a-f]{24})?$"
+        }
       }
     }
   }

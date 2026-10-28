@@ -18,6 +18,7 @@ import { cleanup, doctor, launch, parseEnvOverrides } from "../verify/launch.ts"
 import { runDir, skillDir } from "../verify/paths.ts";
 import { checkStamp, writeDeepStamp } from "../verify/report.ts";
 import { scaffold } from "../verify/scaffold.ts";
+import { featureFreshness, syncFeatures } from "../verify/sync.ts";
 import { checkSkill, editSkill, publishDraft, type SkillIssue, skillUnderValidation } from "../verify/validate.ts";
 
 export const VERIFY_USAGE = `Usage:
@@ -30,6 +31,8 @@ export const VERIFY_USAGE = `Usage:
   plumb verify --doctor <run-id>            Read-only health check of a launched run
   plumb verify --cleanup <run-id>           Tear down what the run started, then check its evidence survived
   plumb verify --stamp <run-id>             Check the run's report and write the deep stamp for the staged tree
+  plumb verify --sync <run-id>              Record HEAD as the commit each feature the run verified was last confirmed at
+  plumb verify --stale                      Features whose code changed since they were last confirmed live
 
 --env values may use {port:<target>} and {runId}.
 
@@ -76,6 +79,8 @@ export async function verifyCommand(argv: readonly string[], io: Io): Promise<Ex
       doctor: { type: "string" },
       cleanup: { type: "string" },
       stamp: { type: "string" },
+      sync: { type: "string" },
+      stale: { type: "boolean" },
       json: { type: "boolean" },
       cwd: { type: "string" },
       help: { type: "boolean", short: "h" },
@@ -87,14 +92,14 @@ export async function verifyCommand(argv: readonly string[], io: Io): Promise<Ex
     io.stdout(VERIFY_USAGE);
     return ExitCode.Ok;
   }
-  const modes = (["plan", "validate", "scaffold", "edit", "publish", "launch", "doctor", "cleanup", "stamp"] as const).filter((m) => values[m] !== undefined && values[m] !== false);
-  if (modes.length !== 1) throw new UsageError(modes.length === 0 ? "verify needs one of --plan, --validate, --scaffold, --edit, --publish, --launch, --doctor, --cleanup, --stamp" : `choose one of --${modes.join(", --")}`);
+  const modes = (["plan", "validate", "scaffold", "edit", "publish", "launch", "doctor", "cleanup", "stamp", "sync", "stale"] as const).filter((m) => values[m] !== undefined && values[m] !== false);
+  if (modes.length !== 1) throw new UsageError(modes.length === 0 ? "verify needs one of --plan, --validate, --scaffold, --edit, --publish, --launch, --doctor, --cleanup, --stamp, --sync, --stale" : `choose one of --${modes.join(", --")}`);
   const mode = modes[0];
   if (values.staged === true && mode !== "plan") throw new UsageError("--staged only applies to --plan");
   if (values.env !== undefined && mode !== "launch") throw new UsageError("--env only applies to --launch");
   if (positionals.length > (mode === "plan" ? 1 : 0)) throw new UsageError(`unexpected argument "${positionals.at(-1) ?? ""}"`);
   // A run id names a directory under .plumb/evidence; reject one that could point elsewhere before touching anything.
-  for (const id of [values.doctor, values.cleanup, values.stamp]) if (id !== undefined) runDir(id);
+  for (const id of [values.doctor, values.cleanup, values.stamp, values.sync]) if (id !== undefined) runDir(id);
   const root = path.resolve(values.cwd ?? ".");
   const json = values.json === true;
   const out = (data: unknown, text: string): void => {
@@ -178,6 +183,21 @@ export async function verifyCommand(argv: readonly string[], io: Io): Promise<Ex
     else lines.push(...result.evidence.missing.map((m) => `✗ evidence missing after cleanup: ${m}`));
     out(result, `${lines.join("\n")}\n`);
     return result.ok ? ExitCode.Ok : ExitCode.CheckFailed;
+  }
+
+  if (mode === "sync" || mode === "stale") {
+    const features = loadFeatures(root);
+    if (features === null) throw new CouldNotCompleteError(`${FEATURES_PATH} doesn't exist yet; /plumb-init generates it`);
+    if (mode === "sync") {
+      const result = syncFeatures(root, values.sync ?? "", features);
+      const lines = [`synced at ${result.commit.slice(0, 12)}: ${result.synced.join(", ") || "nothing"}`, ...result.skipped.map((s) => `  not synced ${s.id}: ${s.reason}`)];
+      out(result, `${lines.join("\n")}\n`);
+      return ExitCode.Ok;
+    }
+    const freshness = featureFreshness(root, features);
+    const lines = freshness.map((f) => `  ${f.state.padEnd(9)} ${f.id}${f.state === "stale" ? `  (${f.changed.join(", ")})` : ""}`);
+    out({ features: freshness }, `${lines.join("\n") || "  no features"}\n`);
+    return ExitCode.Ok;
   }
 
   const runId = values.stamp ?? "";

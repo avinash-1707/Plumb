@@ -3,16 +3,21 @@ import path from "node:path";
 import { GATE_PATH, hasSmoke } from "../gate/script.ts";
 import { writeTree } from "../git.ts";
 import { INSTALL_RECORD, type InstallRecord } from "../hooks/install.ts";
+import { CouldNotCompleteError } from "../errors.ts";
+import { loadFeatures } from "../features.ts";
 import { buildMap } from "../map/build.ts";
 import { staleMapFiles } from "../map/freshness.ts";
 import { loadValidProfile, PROFILE_PATH } from "../profile/load.ts";
 import { EVIDENCE_DIR, skillDir, STAMPS_DIR } from "../verify/paths.ts";
+import { featureFreshness } from "../verify/sync.ts";
 
 export interface StatusReport {
   initialized: boolean;
   map: { upToDate: boolean; stale: string[]; failures: number };
   profile: { strategy: string; runTargets: string[]; services: string[] } | null;
   skill: string | null;
+  /** Feature recipes by freshness against their code (plumb verify --stale); null before features.json exists. */
+  features: { total: number; stale: string[]; unaudited: string[]; unknown: string[] } | { invalid: string } | null;
   gate: { present: boolean; smoke: boolean; stagedTreePassed: boolean; last: { dir: string; passed: boolean } | null };
   lastDeepVerification: { tree: string; report: string; features: string[]; stampedAt: string } | null;
   /** The newest launched run that wrote a report.json and was cleaned up: proof the verify skill has run. */
@@ -69,11 +74,25 @@ export async function collectStatus(root: string): Promise<StatusReport> {
   const bypassLog = path.join(root, ".plumb/cache/bypass.log");
   const record = existsSync(path.join(root, INSTALL_RECORD)) ? (JSON.parse(readFileSync(path.join(root, INSTALL_RECORD), "utf8")) as InstallRecord) : null;
   const skill = profile === null ? null : skillDir(profile.app.slug);
+  let features: StatusReport["features"] = null;
+  try {
+    const index = loadFeatures(root);
+    if (index !== null) {
+      const freshness = featureFreshness(root, index);
+      const inState = (state: string): string[] => freshness.filter((f) => f.state === state).map((f) => f.id);
+      features = { total: freshness.length, stale: inState("stale"), unaudited: inState("unaudited"), unknown: inState("unknown") };
+    }
+  } catch (err) {
+    // Status reports a broken features.json rather than failing on it; plumb doctor names the schema issue.
+    if (!(err instanceof CouldNotCompleteError)) throw err;
+    features = { invalid: err.message };
+  }
   return {
     initialized,
     map: { upToDate: stale.length === 0, stale, failures: map.manifest.extractorFailures.length },
     profile: profile === null ? null : { strategy: profile.strategy, runTargets: profile.run.map((t) => t.name), services: profile.services.map((s) => s.name) },
     skill: skill !== null && existsSync(path.join(root, skill, "SKILL.md")) ? skill : null,
+    features,
     gate: {
       present: gatePresent,
       smoke: gatePresent && hasSmoke(readFileSync(gateFile, "utf8")),
@@ -93,6 +112,14 @@ export function formatStatus(s: StatusReport): string {
   lines.push(`  map        ${s.map.upToDate ? "up to date" : `stale (${String(s.map.stale.length)} files; run plumb map --update)`}${s.map.failures > 0 ? `, ${String(s.map.failures)} extractor failures` : ""}`);
   if (s.profile !== null) lines.push(`  profile    ${s.profile.strategy}; run targets: ${s.profile.runTargets.join(", ") || "none"}; services: ${s.profile.services.join(", ") || "none"}`);
   lines.push(`  skill      ${s.skill ?? "not generated"}`);
+  if (s.features !== null && "invalid" in s.features) lines.push(`  features   ${s.features.invalid}`);
+  else if (s.features !== null) {
+    const parts = [`${String(s.features.total)} mapped`];
+    if (s.features.stale.length > 0) parts.push(`stale since last confirmed: ${s.features.stale.join(", ")}`);
+    if (s.features.unaudited.length > 0) parts.push(`never confirmed live: ${s.features.unaudited.join(", ")}`);
+    if (s.features.unknown.length > 0) parts.push(`sync commit not in this clone: ${s.features.unknown.join(", ")}`);
+    lines.push(`  features   ${parts.join("; ")}${parts.length > 1 ? " (/plumb-refine)" : ""}`);
+  }
   lines.push(`  gate       ${s.gate.present ? `${GATE_PATH} (smoke boot ${s.gate.smoke ? "on" : "off"}); staged tree ${s.gate.stagedTreePassed ? "passed" : "not checked yet"}` : "not generated"}`);
   if (s.gate.last !== null) lines.push(`  last gate  ${s.gate.last.passed ? "passed" : "failed"} (${s.gate.last.dir})`);
   lines.push(`  deep       ${s.lastDeepVerification === null ? "never verified" : `${s.lastDeepVerification.features.join(", ")} at ${s.lastDeepVerification.stampedAt} (${s.lastDeepVerification.report})`}`);

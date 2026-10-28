@@ -10,6 +10,8 @@ export interface Feature {
   components: string[];
   entryPoints: string[];
   tier: "fast-only" | "deep";
+  /** Commit at which a live run last confirmed the recipe (plumb verify --sync). */
+  syncedAt?: string;
 }
 
 export interface FeatureIndex {

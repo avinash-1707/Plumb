@@ -68,6 +68,22 @@ export function writeTree(root: string): string {
   return git(root, ["write-tree"]).trim();
 }
 
+/**
+ * Files that differ between two revisions (commits or trees), relative to root; null when `from` isn't in this clone
+ * (a shallow clone, rewritten history).
+ */
+export function changedBetween(root: string, from: string, to: string): string[] | null {
+  try {
+    git(root, ["cat-file", "-e", from]);
+  } catch (err) {
+    if (err instanceof GitError) return null;
+    throw err;
+  }
+  return git(root, ["diff", "--name-only", "--no-renames", "--relative", "-z", from, to, "--"])
+    .split("\0")
+    .filter((f) => f !== "");
+}
+
 /** HEAD's tree: what a branch's pull request contains. */
 export function headTree(root: string): string {
   return git(root, ["rev-parse", "HEAD^{tree}"]).trim();

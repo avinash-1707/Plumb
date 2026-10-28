@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import net from "node:net";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
@@ -10,6 +10,8 @@ import { listFiles } from "../src/git.ts";
 import type { Profile } from "../src/profile/types.ts";
 import { cleanup, doctor, expandPlaceholders, launch, loadState, probeOnPort } from "../src/verify/launch.ts";
 import { checkStamp, writeDeepStamp } from "../src/verify/report.ts";
+import { featureFreshness, syncFeatures } from "../src/verify/sync.ts";
+import type { FeatureIndex } from "../src/features.ts";
 import { draftFeatures, scaffold } from "../src/verify/scaffold.ts";
 import { render } from "../src/template.ts";
 import { checkSkill, publishDraft } from "../src/verify/validate.ts";
@@ -362,6 +364,112 @@ describe("--stamp", () => {
       "ghost/x failed: 500",
       "the changes touch deep feature \"orders\", which this run didn't verify",
     ]);
+  });
+});
+
+describe("--sync and feature freshness", () => {
+  const feature = (id: string, paths: string[]) => ({ id, file: `features/${id}.md`, paths, components: [], entryPoints: [], tier: "deep" as const });
+  const verifiedReport = (id: string) => ({ id, subFeatures: [{ id: "main", status: "verified", entryPoint: "/", artifacts: [`${id}/proof.txt`], observed: "ok" }] });
+  const git = (root: string, ...args: string[]): string =>
+    execFileSync("git", ["-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false", ...args], { cwd: root, encoding: "utf8" }).trim();
+
+  function setup(): string {
+    const root = makeProject({ "src/orders.js": "1", "src/cart.js": "1", "src/other.js": "1" });
+    mkdirSync(path.join(root, ".plumb"), { recursive: true });
+    writeFileSync(path.join(root, ".plumb/features.json"), JSON.stringify({ features: [feature("orders", ["src/orders.js"]), feature("cart", ["src/cart.js"]), feature("refunds", ["src/refunds/**"])] }));
+    return root;
+  }
+
+  function finishedRun(root: string, tree: string, features: object[]): string {
+    const dir = path.join(root, ".plumb/evidence/run-1");
+    for (const id of ["orders", "cart"]) {
+      mkdirSync(path.join(dir, id), { recursive: true });
+      writeFileSync(path.join(dir, id, "proof.txt"), "ok");
+    }
+    writeFileSync(path.join(dir, "report.json"), JSON.stringify({ schemaVersion: 1, runId: "run-1", tree, features }));
+    writeFileSync(path.join(dir, "report.md"), "# Report\n");
+    writeFileSync(path.join(dir, "run.json"), JSON.stringify({ schemaVersion: 1, runId: "run-1", tree, cleanedUpAt: "2026-10-18T00:00:00Z" }));
+    return "run-1";
+  }
+
+  const load = (root: string): FeatureIndex => JSON.parse(readFileSync(path.join(root, ".plumb/features.json"), "utf8")) as FeatureIndex;
+
+  it("syncs only verified features whose code is unchanged since the drive, then tracks staleness from that commit", () => {
+    const root = setup();
+    const tree = writeTree(root);
+    const unreachable = { id: "refunds", subFeatures: [{ id: "main", status: "verified-unreachable", entryPoint: "/refunds", artifacts: [], observed: "no key", prerequisite: "STRIPE_KEY" }] };
+    finishedRun(root, tree, [verifiedReport("orders"), verifiedReport("cart"), unreachable]);
+    // cart's code moves on after the drive and is committed; the run no longer proves it.
+    writeFileSync(path.join(root, "src/cart.js"), "2");
+    git(root, "commit", "-qam", "change cart");
+    const head = git(root, "rev-parse", "HEAD");
+
+    const result = syncFeatures(root, "run-1", load(root));
+    expect(result).toEqual({
+      commit: head,
+      synced: ["orders"],
+      skipped: [
+        { id: "cart", reason: "its code changed after the drive; commit what was driven, or verify again" },
+        { id: "refunds", reason: "nothing was verified (only unreachable)" },
+      ],
+    });
+    expect(load(root).features.map((f) => f.syncedAt ?? null)).toEqual([head, null, null]);
+
+    const states = () => featureFreshness(root, load(root)).map((f) => [f.id, f.state, f.changed]);
+    expect(states()).toEqual([["orders", "fresh", []], ["cart", "unaudited", []], ["refunds", "unaudited", []]]);
+    // An unrelated change keeps orders fresh; a change under its paths makes it stale.
+    writeFileSync(path.join(root, "src/other.js"), "2");
+    git(root, "commit", "-qam", "other");
+    expect(states()[0]).toEqual(["orders", "fresh", []]);
+    writeFileSync(path.join(root, "src/orders.js"), "2");
+    git(root, "commit", "-qam", "orders");
+    expect(states()[0]).toEqual(["orders", "stale", ["src/orders.js"]]);
+  });
+
+  it("refuses a run whose evidence a stamp would refuse: missing artifact, another run's report, another tree", () => {
+    const report = (root: string): string => path.join(root, ".plumb/evidence/run-1/report.json");
+    const missing = setup();
+    finishedRun(missing, writeTree(missing), [verifiedReport("orders")]);
+    rmSync(path.join(missing, ".plumb/evidence/run-1/orders/proof.txt"));
+    expect(() => syncFeatures(missing, "run-1", load(missing))).toThrow(/artifact missing: orders\/proof.txt/);
+
+    const copied = setup();
+    const tree = writeTree(copied);
+    finishedRun(copied, tree, [verifiedReport("orders")]);
+    writeFileSync(report(copied), JSON.stringify({ schemaVersion: 1, runId: "run-0", tree, features: [verifiedReport("orders")] }));
+    expect(() => syncFeatures(copied, "run-1", load(copied))).toThrow(/runId is "run-0"/);
+    writeFileSync(report(copied), JSON.stringify({ schemaVersion: 1, runId: "run-1", tree: "0".repeat(40), features: [verifiedReport("orders")] }));
+    expect(() => syncFeatures(copied, "run-1", load(copied))).toThrow(/but the run was launched on/);
+    expect(load(copied).features[0]?.syncedAt).toBeUndefined();
+  });
+
+  it("skips a feature with a failed sub-feature", () => {
+    const root = setup();
+    const failed = { id: "orders", subFeatures: [...verifiedReport("orders").subFeatures, { id: "refund", status: "failed", entryPoint: "/", artifacts: [], observed: "500" }] };
+    finishedRun(root, writeTree(root), [failed]);
+    expect(syncFeatures(root, "run-1", load(root)).skipped).toEqual([{ id: "orders", reason: "a sub-feature failed" }]);
+  });
+
+  it("reads paths relative to a Plumb root in a repo subdirectory", () => {
+    const repo = makeProject({ "pkg/src/orders.js": "1", "other/src/orders.js": "1" });
+    const head = git(repo, "rev-parse", "HEAD");
+    writeFileSync(path.join(repo, "pkg/src/orders.js"), "2");
+    writeFileSync(path.join(repo, "other/src/orders.js"), "2");
+    git(repo, "commit", "-qam", "both");
+    const index: FeatureIndex = { features: [{ ...feature("orders", ["src/orders.js"]), syncedAt: head }] };
+    expect(featureFreshness(path.join(repo, "pkg"), index)[0]).toMatchObject({ state: "stale", changed: ["src/orders.js"] });
+  });
+
+  it("calls a sync commit that isn't in the clone unknown, and refuses a run still up", () => {
+    const root = setup();
+    const index = load(root);
+    index.features[0] = { ...feature("orders", ["src/orders.js"]), syncedAt: "f".repeat(40) };
+    expect(featureFreshness(root, index)[0]?.state).toBe("unknown");
+
+    const tree = writeTree(root);
+    finishedRun(root, tree, [verifiedReport("orders")]);
+    writeFileSync(path.join(root, ".plumb/evidence/run-1/run.json"), JSON.stringify({ schemaVersion: 1, runId: "run-1", tree, cleanedUpAt: null }));
+    expect(() => syncFeatures(root, "run-1", load(root))).toThrow(/still running/);
   });
 });
 
