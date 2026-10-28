@@ -9,6 +9,7 @@ export interface Config {
   ignore?: string[];
   deepIgnore?: string[];
   gate?: { smoke?: boolean; budgetSec?: number };
+  sessionDigest?: boolean;
   review?: {
     concerns?: Array<"architecture" | "resilience" | "concurrency" | "resources">;
     blockAt?: "critical" | "high" | "medium";

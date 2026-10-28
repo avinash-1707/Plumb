@@ -90,6 +90,7 @@ Then type `/plumb-init` in the session.
 | Verify skill | `.claude/skills/verify-<app>/`: Launch, Doctor, Drive, Evidence, Cleanup, and a feature map with one file per key feature. Plumb fills everything deterministic; the session writes the recipes; `plumb verify --validate` checks the structure |
 | Gate | `.plumb/gate.sh` is plain POSIX sh, committed, and runs without Plumb installed. A pass is stamped by the staged tree's hash, so the same content is never checked twice. No model |
 | Agent hook | The plugin's PreToolUse hook sees `git commit`, runs the gate, and blocks while the staged change touches a deep-tier feature that has no passing live verification for that exact tree. No model |
+| Session digest | At the start of each Claude Code session, a hook adds a short digest of the map (components, what uses what, stale features) and the commands to query it, so the agent checks impact before editing. About 1.5k tokens at most; `"sessionDigest": false` in `.plumb/config.json` turns it off. No model |
 
 Everything Plumb starts (servers, containers) runs in its own process group and is torn down by recorded id, never by process name. Evidence survives cleanup, and `plumb verify --cleanup` checks that it did.
 
@@ -103,7 +104,7 @@ In Claude Code:
 | `/plumb-verify [features]` | Drive the features the staged changes touch (or the named ones), keep the evidence, and stamp the staged tree. You run this when the gate asks for it |
 | `/plumb-status` | What Plumb has set up and what it last proved |
 | `/plumb-pr [base]` | Optional. Verify exactly the features a branch touches and write a PR report |
-| `/plumb-refine` | Optional. Re-check every feature file against the code and the live app; ends `clean`, `changed`, or `blocked` |
+| `/plumb-refine` | Optional. Re-check the feature files whose code changed since they were last confirmed (`plumb status` lists them) against the source, drive every feature live; ends `clean`, `changed`, or `blocked` |
 
 <details>
 <summary>Shell CLI reference</summary>
@@ -118,6 +119,7 @@ The skills and hooks call these; you rarely need to. Every command takes `--json
 | `plumb gate [--dry-run \| --regenerate]` | Run, preview, or regenerate the fast tier |
 | `plumb hooks install \| uninstall` | Chain the gate into husky, lefthook, pre-commit, `core.hooksPath`, or `.git/hooks`; uninstall restores the original byte for byte |
 | `plumb verify --plan \| --launch \| --doctor \| --cleanup \| --stamp \| --validate` | The deterministic parts of a live verification |
+| `plumb verify --stale`, `plumb verify --sync <run-id>` | Which features' code changed since a live run last confirmed them; record a run's confirmation |
 | `plumb pr <base> [--run <id>]` | PR verification plan and report |
 | `plumb status` | State of the setup |
 | `plumb doctor` | Health of Plumb itself (Node, TypeScript, dependency-cruiser, hook). Not the same as `.plumb/bin/doctor <run-id>`, which checks a running verification instance |

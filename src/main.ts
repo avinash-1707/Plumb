@@ -35,7 +35,7 @@ Called by the Claude Code skills and hooks; you rarely run these yourself:
   knowledge     Prepare and validate explorer findings (plumb knowledge --help)
   profile       Validate and verify .plumb/profile.json (plumb profile --help)
   local         Answers to unknowns in .plumb/local.json (plumb local --help)
-  hook          Hook entry points for agents (plumb hook claude-pre-commit)
+  hook          Hook entry points for agents (plumb hook claude-pre-commit | claude-session-start)
   verify        Verify skill: scaffold, validate, launch, doctor, cleanup, plan, stamp (plumb verify --help)
 
 Options:
