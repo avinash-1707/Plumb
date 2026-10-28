@@ -85,8 +85,10 @@ A verify skill that never ran is a draft. First run `plumb gate` (Bash timeout 6
 1. Pick the highest-ranked feature in `.plumb/features.json` that the launch can reach without anything from the user.
 2. Launch as the skill's Launch section says and note the run id. Then run `.plumb/bin/doctor <run-id>`.
 3. Drive the feature's first sub-feature with its recipe, and save evidence where the Evidence section says.
-4. Write `report.md` and `report.json` in the run directory.
-5. Clean up as the Cleanup section says, ending with `plumb verify --cleanup <run-id>`. It must print `evidence intact`.
+4. Run a negative control on the same path: an input the app must reject, a record that doesn't exist, or an expected value that can't occur. Confirm the recipe's observation reports it as a failure, and save that evidence too. A recipe whose check passes either way is wrong: fix it (see below). In `report.json`, the control is its own sub-feature with status `verified` and `observed` naming what was rejected; `failed` means the app itself misbehaved, and blocks the sync.
+5. Write `report.md` (including the negative control and what it showed) and `report.json` in the run directory.
+6. Clean up as the Cleanup section says, ending with `plumb verify --cleanup <run-id>`. It must print `evidence intact`.
+7. Run `plumb verify --sync <run-id>`. It records the current commit as the point the driven feature was last confirmed live, so `plumb status` can tell when its code moves on.
 
 If any step fails, always run `plumb verify --cleanup <run-id>` first. Then fix the skill (a wrong selector, URL, or recipe step; never product code): run `plumb verify --edit`, change the copy in `.plumb/cache/draft/verify-<slug>/` (never edit `.claude/` directly), run `plumb verify --validate`, then `plumb verify --publish`, and try again. At most three attempts; then stop and report the blocker with the failing step's output. Don't stamp anything: there is no staged change to prove.
 

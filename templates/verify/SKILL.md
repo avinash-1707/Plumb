@@ -107,4 +107,6 @@ It stops exactly the process groups and services the launch recorded, never anyt
 - Don't trust dry-run or test-mode flags. Observe what they actually skip (files, network, git refs).
 - An unreachable entry point is reported as `verified-unreachable` with the attempted route and the unmet prerequisite.
 - Never drive an instance that hasn't passed Doctor since it last did something surprising.
+- A check proves nothing unless it can fail. When a recipe is new or changed, run a negative control once on the same user path (an input the app must reject, a record that doesn't exist, an expected value that can't occur) and confirm the observation tells the two apart. Record a control the app correctly rejected as its own sub-feature with status `verified` and `observed` naming what was rejected; `failed` is only for wrong app behavior.
+- Never weaken a check to make it pass: don't drop a step, loosen what you look for, or switch to an easier entry point after a failure. Either the recipe is wrong (fix it, then prove the fixed recipe on the same path) or the app is (report it as `failed`).
 <!-- plumb:managed:end proof-standards -->

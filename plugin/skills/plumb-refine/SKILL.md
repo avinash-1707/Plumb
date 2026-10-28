@@ -29,7 +29,9 @@ Run `plumb verify --validate`. Missing, extra, duplicate, or dead entries (a fea
 
 ## 2. Source wave
 
-Launch one `plumb:feature-source-reader` agent per feature file, all in a single message so they run in parallel. Each prompt names the feature file path and pastes its `.plumb/features.json` entry. They read only; they never drive the app or edit files.
+Run `plumb verify --stale`. It lists each feature as `fresh` (its code is unchanged since a live run last confirmed it), `stale` (with the changed files), `unaudited` (never confirmed), or `unknown` (its sync commit isn't in this clone). Read the stale, unaudited, and unknown features from source; skip the fresh ones unless the user asked for a full pass or the churn sweep in step 3 points at one.
+
+Launch one `plumb:feature-source-reader` agent per feature file to read, all in a single message so they run in parallel. Each prompt names the feature file path and pastes its `.plumb/features.json` entry. They read only; they never drive the app or edit files.
 
 ## 3. Reconcile
 
@@ -47,7 +49,8 @@ Required even when the source looks clean. You own all driving. Follow the skill
 For each finding:
 
 - **Doc drift** (the skill or a feature file is wrong about working code): fix it.
-- **Harness gap** (working behavior the recipe can't drive): fix the recipe, then drive it live again to prove the fix.
+- **Harness gap** (working behavior the recipe can't drive): fix the recipe, then drive it live again to prove the fix, with a negative control on the same path that the fixed recipe reports as a failure. Record the control as a `verified` sub-feature whose `observed` names what was rejected; `failed` is only for wrong app behavior.
+- Never weaken a check to make a feature pass: don't drop a step, loosen what the recipe looks for, or switch to an easier entry point. If the honest recipe fails, it is a product gap.
 - **Product gap** (the app is broken): report it with its evidence. Keep it out of the change.
 
 To change the skill, run `plumb verify --edit`: it copies the published skill to `.plumb/cache/draft/verify-<slug>/`. Edit only there (Claude Code asks before every write under `.claude/`), plus `.plumb/features.json` and the doctor helper. Then run `plumb verify --validate` until it passes and `plumb verify --publish`.
@@ -56,3 +59,5 @@ To change the skill, run `plumb verify --edit`: it copies the published skill to
 
 - **changed**: re-read every file you changed, then present the change set: each fix with the drift it corrects (`path:line` in the code) and the live evidence that proves it.
 - **clean** or **blocked**: report the outcome and the coverage honestly: which features got source and live coverage, and what blocked the rest.
+
+For **clean** and **changed**, finish with `plumb verify --sync <run-id>` for each run of this refine that verified a feature (the live pass, and any re-drive after a fix), oldest first. It records the current commit for every feature the run verified, so the next refine reads only what changed since. It changes only `syncedAt` values in `.plumb/features.json`; commit that with the rest.
